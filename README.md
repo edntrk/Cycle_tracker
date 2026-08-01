@@ -1,50 +1,51 @@
-# Welcome to your Expo app 👋
+# 🌸 Cycle Tracker
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native mobile app for tracking menstrual cycles, predicting periods and ovulation, and managing medication reminders — built with Expo, TypeScript, and Supabase.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Authentication** — Email sign-up/sign-in with 8-digit email verification codes (via Supabase Auth + Resend SMTP)
+- **Onboarding** — Collects cycle history to generate accurate predictions from day one
+- **Home dashboard** — Shows current cycle phase (menstrual, follicular, ovulation, luteal), days until next period, and fertile window status
+- **Calendar** — Tap any day to log flow intensity (none/light/medium/heavy); color-coded monthly view
+- **Medication reminders** — Add medications/vitamins with custom schedules and get local push notifications at the right time
+- **Bilingual** — Full English/Turkish language toggle throughout the app
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **Framework:** React Native + Expo (SDK 54), TypeScript, Expo Router
+- **Backend:** Supabase (Postgres, Auth, Row Level Security)
+- **Email:** Resend (custom SMTP for auth emails)
+- **Notifications:** expo-notifications
+- **Calendar UI:** react-native-calendars
 
-   ```bash
-   npx expo start
-   ```
+## Architecture
 
-In the output, you'll find options to open the app in a
+- `app/_layout.tsx` — Root navigation logic; routes users through Auth → Onboarding → Main app based on session and profile state
+- `components/` — Screen-level components (AuthScreen, OnboardingScreen, HomeScreen, CalendarScreen, MedicationsScreen, MainTabs)
+- `lib/` — Shared logic: Supabase client, cycle prediction algorithm, translations, language context
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Cycle prediction algorithm
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Predictions are derived from the user's average cycle length and last logged period start date:
+### Database schema
 
-## Get a fresh project
+Four core tables in Supabase, all with Row Level Security enabled so users can only access their own data:
 
-When you're ready, run:
+- `profiles` — user info, cycle averages, onboarding status
+- `cycle_entries` — daily flow intensity logs
+- `symptom_entries` — optional symptom tracking (planned)
+- `medications` — medication name, dosage, frequency, reminder times
+
+## Status
+
+This is an active work-in-progress MVP. Planned next steps include symptom logging in the calendar flow, a profile/settings screen, and push notifications for upcoming periods.
+
+## Getting Started
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Requires a `.env` file with:
