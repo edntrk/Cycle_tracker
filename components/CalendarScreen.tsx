@@ -5,6 +5,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { SYMPTOM_CATEGORIES } from '@/lib/symptomTags';
+import { APPOINTMENT_CATEGORIES } from '@/lib/appointmentCategories';
 
 type FlowIntensity = 'none' | 'light' | 'medium' | 'heavy';
 
@@ -41,10 +42,64 @@ function computeCycleLengths(entries: Record<string, FlowIntensity>) {
   return { lengths, starts };
 }
 
+function DayCell({
+  date,
+  state,
+  flow,
+  apptColors,
+  isSelected,
+  onPress,
+}: {
+  date: DateData;
+  state: string;
+  flow?: FlowIntensity;
+  apptColors: string[];
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const isToday = state === 'today';
+  const isOtherMonth = state === 'disabled';
+  const bg = flow && flow !== 'none' ? flowColors[flow] : undefined;
+  const textColor = bg ? '#fff' : isOtherMonth ? '#D9C3D6' : '#2D1B3D';
+
+  return (
+    <TouchableOpacity onPress={onPress} style={dayCellStyles.wrapper}>
+      <View
+        style={[
+          dayCellStyles.circle,
+          bg ? { backgroundColor: bg } : null,
+          isSelected && !bg ? dayCellStyles.selectedOutline : null,
+          isToday && !bg ? dayCellStyles.todayOutline : null,
+        ]}
+      >
+        <Text style={[dayCellStyles.dayText, { color: textColor }, isToday && !bg && { color: '#8E5FBF', fontWeight: '800' }]}>
+          {date.day}
+        </Text>
+      </View>
+      <View style={dayCellStyles.dotsRow}>
+        {apptColors.slice(0, 3).map((c, i) => (
+          <View key={i} style={[dayCellStyles.dot, { backgroundColor: c }]} />
+        ))}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const dayCellStyles = StyleSheet.create({
+  wrapper: { alignItems: 'center', paddingVertical: 4, width: 40 },
+  circle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  selectedOutline: { borderWidth: 2, borderColor: '#8E5FBF' },
+  todayOutline: { borderWidth: 1.5, borderColor: '#C9A9DC' },
+  dayText: { fontSize: 14, fontWeight: '600' },
+  dotsRow: { flexDirection: 'row', gap: 3, marginTop: 3, height: 6 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+});
+
 export default function CalendarScreen({ userId }: { userId: string }) {
   const { t, lang } = useLanguage();
   const [entries, setEntries] = useState<Record<string, FlowIntensity>>({});
   const [symptomDays, setSymptomDays] = useState<Record<string, string[]>>({});
+  const [apptDays, setApptDays] = useState<Record<string, string[]>>({}); // date -> array of category colors
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,9 +108,10 @@ export default function CalendarScreen({ userId }: { userId: string }) {
   const [statsExpanded, setStatsExpanded] = useState(false);
 
   const loadEntries = useCallback(async () => {
-    const [{ data: cycleData }, { data: symptomData }] = await Promise.all([
+    const [{ data: cycleData }, { data: symptomData }, { data: apptData }] = await Promise.all([
       supabase.from('cycle_entries').select('date, flow_intensity').eq('user_id', userId),
       supabase.from('symptom_entries').select('date, symptom_type').eq('user_id', userId),
+      supabase.from('appointments').select('appointment_date, category').eq('user_id', userId),
     ]);
 
     const map: Record<string, FlowIntensity> = {};
@@ -70,6 +126,15 @@ export default function CalendarScreen({ userId }: { userId: string }) {
       symptomMap[row.date].push(row.symptom_type);
     });
     setSymptomDays(symptomMap);
+
+    const apptMap: Record<string, string[]> = {};
+    (apptData || []).forEach((row) => {
+      const cat = APPOINTMENT_CATEGORIES.find((c) => c.id === row.category);
+      const color = cat?.color || '#B08BC9';
+      if (!apptMap[row.appointment_date]) apptMap[row.appointment_date] = [];
+      apptMap[row.appointment_date].push(color);
+    });
+    setApptDays(apptMap);
 
     setLoading(false);
   }, [userId]);
@@ -151,40 +216,6 @@ export default function CalendarScreen({ userId }: { userId: string }) {
     setSelectedDate(null);
   }
 
-  const markedDates: Record<string, any> = {};
-  Object.entries(entries).forEach(([date, intensity]) => {
-    markedDates[date] = {
-      customStyles: {
-        container: { backgroundColor: flowColors[intensity], borderRadius: 8 },
-        text: { color: intensity === 'none' ? '#333' : '#fff', fontWeight: '600' },
-      },
-    };
-  });
-  Object.keys(symptomDays).forEach((date) => {
-    if (symptomDays[date]?.length && !markedDates[date]) {
-      markedDates[date] = {
-        customStyles: {
-          container: { borderWidth: 2, borderColor: '#8E5FBF', borderRadius: 8 },
-          text: { color: '#4A2C6D', fontWeight: '600' },
-        },
-      };
-    }
-  });
-  if (selectedDate) {
-    markedDates[selectedDate] = {
-      ...(markedDates[selectedDate] || {}),
-      customStyles: {
-        container: {
-          backgroundColor: markedDates[selectedDate]?.customStyles?.container?.backgroundColor || '#fff',
-          borderRadius: 8,
-          borderWidth: 2,
-          borderColor: '#8E5FBF',
-        },
-        text: { color: markedDates[selectedDate]?.customStyles?.container?.backgroundColor ? '#fff' : '#4A2C6D', fontWeight: '700' },
-      },
-    };
-  }
-
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -242,16 +273,20 @@ export default function CalendarScreen({ userId }: { userId: string }) {
       )}
 
       <Calendar
-        markingType="custom"
-        markedDates={markedDates}
-        onDayPress={(day: DateData) => openDay(day.dateString)}
+        dayComponent={({ date, state }: any) => (
+          <DayCell
+            date={date}
+            state={state}
+            flow={entries[date.dateString]}
+            apptColors={apptDays[date.dateString] || []}
+            isSelected={selectedDate === date.dateString}
+            onPress={() => openDay(date.dateString)}
+          />
+        )}
         theme={{
           backgroundColor: '#FCEEF3',
           calendarBackground: '#FCEEF3',
           textSectionTitleColor: '#8B7AA8',
-          selectedDayBackgroundColor: '#8E5FBF',
-          todayTextColor: '#8E5FBF',
-          dayTextColor: '#2D1B3D',
           arrowColor: '#8E5FBF',
           monthTextColor: '#4A2C6D',
           textMonthFontWeight: '700',
@@ -323,7 +358,7 @@ export default function CalendarScreen({ userId }: { userId: string }) {
               )}
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveAndClose} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>{t.save}</Text>}
+                {saving ? <ActivityIndicator color="#8E5FBF" /> : <Text style={styles.saveButtonText}>{t.save}</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedDate(null)}>

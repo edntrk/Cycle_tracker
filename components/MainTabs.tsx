@@ -7,9 +7,10 @@ import MedicationsScreen from './MedicationsScreen';
 import SymptomsScreen from './SymptomsScreen';
 import LearnScreen from './LearnScreen';
 import ProfileScreen from './ProfileScreen';
+import SettingsScreen from './SettingsScreen';
 import { useLanguage } from '@/lib/LanguageContext';
 
-type Tab = 'home' | 'calendar' | 'appointments' | 'meds' | 'symptoms' | 'learn' | 'profile';
+type Tab = 'home' | 'calendar' | 'appointments' | 'meds' | 'symptoms' | 'learn' | 'profile' | 'settings';
 
 export default function MainTabs({
   userId,
@@ -24,14 +25,15 @@ export default function MainTabs({
   return (
     <View style={{ flex: 1 }}>
       {tab === 'home' && (
-        <HomeScreen profile={profile} onNavigate={(dest) => setTab(dest as Tab)} />
+        <HomeScreen profile={profile} userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />
       )}
       {tab === 'calendar' && <CalendarScreen userId={userId} />}
       {tab === 'appointments' && <AppointmentsScreen userId={userId} />}
       {tab === 'meds' && <MedicationsScreen userId={userId} />}
       {tab === 'symptoms' && <SymptomsScreen userId={userId} profile={profile} />}
       {tab === 'learn' && <LearnScreen />}
-      {tab === 'profile' && <ProfileScreen userId={userId} />}
+      {tab === 'profile' && <ProfileScreen userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />}
+      {tab === 'settings' && <SettingsScreen userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />}
 
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setTab('home')}>
@@ -54,10 +56,6 @@ export default function MainTabs({
           <Text style={[styles.tabIcon, tab === 'symptoms' && styles.tabActive]}>🩺</Text>
           <Text style={[styles.tabLabel, tab === 'symptoms' && styles.tabActive]}>{t.tabSymptoms}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setTab('profile')}>
-          <Text style={[styles.tabIcon, tab === 'profile' && styles.tabActive]}>👤</Text>
-          <Text style={[styles.tabLabel, tab === 'profile' && styles.tabActive]}>{t.tabProfile}</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -73,7 +71,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tabItem: { flex: 1, alignItems: 'center' },
-  tabIcon: { fontSize: 18, opacity: 0.4 },
-  tabLabel: { fontSize: 9, color: '#8B7AA8', opacity: 0.6, marginTop: 2 },
+  tabIcon: { fontSize: 20, opacity: 0.4 },
+  tabLabel: { fontSize: 10, color: '#8B7AA8', opacity: 0.6, marginTop: 2 },
   tabActive: { opacity: 1 },
 });

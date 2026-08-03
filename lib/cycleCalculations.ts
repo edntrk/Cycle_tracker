@@ -8,6 +8,7 @@ export interface CycleInfo {
   fertileWindowStart: Date;
   fertileWindowEnd: Date;
   isInFertileWindow: boolean;
+  dayInCycle: number;
 }
 
 function addDays(date: Date, days: number): Date {
@@ -18,22 +19,19 @@ function addDays(date: Date, days: number): Date {
 
 function daysBetween(a: Date, b: Date): number {
   const msPerDay = 1000 * 60 * 60 * 24;
-  // Normalize to midnight to avoid off-by-one from time-of-day differences
   const aMid = new Date(a.getFullYear(), a.getMonth(), a.getDate());
   const bMid = new Date(b.getFullYear(), b.getMonth(), b.getDate());
   return Math.round((bMid.getTime() - aMid.getTime()) / msPerDay);
 }
 
 export function calculateCycleInfo(
-  lastPeriodStart: string, // 'YYYY-MM-DD'
+  lastPeriodStart: string,
   avgCycleLength: number,
   avgPeriodLength: number,
   today: Date = new Date()
 ): CycleInfo {
   const lastStart = new Date(lastPeriodStart);
 
-  // How many full cycles have passed since the last logged start,
-  // so predictions stay accurate even if the user hasn't logged in a while.
   const daysSinceLastStart = daysBetween(lastStart, today);
   const cyclesPassed = Math.floor(daysSinceLastStart / avgCycleLength);
   const currentCycleStart = addDays(lastStart, cyclesPassed * avgCycleLength);
@@ -43,7 +41,7 @@ export function calculateCycleInfo(
   const fertileWindowStart = addDays(ovulationDate, -5);
   const fertileWindowEnd = addDays(ovulationDate, 1);
 
-  const dayInCycle = daysBetween(currentCycleStart, today); // 0-indexed
+  const dayInCycle = daysBetween(currentCycleStart, today);
   const daysUntilNextPeriod = daysBetween(today, nextPeriodDate);
 
   let phase: CyclePhase;
@@ -67,5 +65,6 @@ export function calculateCycleInfo(
     fertileWindowStart,
     fertileWindowEnd,
     isInFertileWindow,
+    dayInCycle,
   };
 }

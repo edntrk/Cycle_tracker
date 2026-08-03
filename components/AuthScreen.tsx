@@ -15,9 +15,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 
+type Step = 'form' | 'verify' | 'forgot-email' | 'forgot-reset';
+
 export default function AuthScreen() {
   const { lang, setLang, t } = useLanguage();
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [step, setStep] = useState<Step>('form');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +30,11 @@ export default function AuthScreen() {
   const [code, setCode] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
 
   async function handleAuth() {
     if (!email || !password) {
@@ -64,11 +71,7 @@ export default function AuthScreen() {
   async function handleVerify() {
     if (code.length !== 8) return;
     setAuthLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: 'signup',
-    });
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'signup' });
     setAuthLoading(false);
     if (error) {
       Alert.alert(t.error, t.invalidCode);
@@ -79,6 +82,58 @@ export default function AuthScreen() {
     const { error } = await supabase.auth.resend({ type: 'signup', email });
     if (!error) {
       Alert.alert(t.success, t.codeSent);
+    }
+  }
+
+  async function handleSendResetCode() {
+    if (!resetEmail) return;
+    setAuthLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+    setAuthLoading(false);
+    if (error) {
+      Alert.alert(t.error, error.message);
+    } else {
+      setStep('forgot-reset');
+    }
+  }
+
+  async function handleResetPassword() {
+    if (resetCode.length < 6) return;
+    if (resetNewPassword.length < 6) {
+      Alert.alert(t.error, t.passwordTooShort);
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      Alert.alert(t.error, t.passwordsDontMatch);
+      return;
+    }
+
+    setAuthLoading(true);
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: resetEmail,
+      token: resetCode,
+      type: 'recovery',
+    });
+
+    if (verifyError) {
+      setAuthLoading(false);
+      Alert.alert(t.error, t.invalidCode);
+      return;
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: resetNewPassword });
+    setAuthLoading(false);
+
+    if (updateError) {
+      Alert.alert(t.error, updateError.message);
+    } else {
+      await supabase.auth.signOut();
+      Alert.alert(t.success, t.resetSuccess);
+      setStep('form');
+      setResetEmail('');
+      setResetCode('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
     }
   }
 
@@ -94,12 +149,86 @@ export default function AuthScreen() {
     </View>
   );
 
+  if (step === 'forgot-email') {
+    return (
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {LangSwitch}
+        <View style={styles.card}>
+          <Text style={styles.title}>{t.resetPasswordTitle}</Text>
+          <Text style={styles.subtitle}>{t.resetPasswordSubtitle}</Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder={t.email}
+            placeholderTextColor="#B8A8C8"
+            value={resetEmail}
+            onChangeText={setResetEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+
+          <TouchableOpacity style={styles.button} onPress={handleSendResetCode} disabled={authLoading}>
+            {authLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t.sendResetCode}</Text>}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setStep('form')}>
+            <Text style={styles.switchText}>{t.backToSignIn}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  if (step === 'forgot-reset') {
+    return (
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {LangSwitch}
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
+          <View style={styles.card}>
+            <Text style={styles.title}>{t.enterResetCode}</Text>
+            <Text style={styles.subtitle}>{resetEmail}</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="000000"
+              placeholderTextColor="#C9B8D8"
+              value={resetCode}
+              onChangeText={setResetCode}
+              keyboardType="number-pad"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder={t.newPassword}
+              placeholderTextColor="#B8A8C8"
+              value={resetNewPassword}
+              onChangeText={setResetNewPassword}
+              secureTextEntry
+            />
+            <TextInput
+              style={styles.input}
+              placeholder={t.confirmNewPassword}
+              placeholderTextColor="#B8A8C8"
+              value={resetConfirmPassword}
+              onChangeText={setResetConfirmPassword}
+              secureTextEntry
+            />
+
+            <TouchableOpacity style={styles.button} onPress={handleResetPassword} disabled={authLoading}>
+              {authLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t.resetPasswordBtn}</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setStep('form')}>
+              <Text style={styles.switchText}>{t.backToSignIn}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   if (step === 'verify') {
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {LangSwitch}
         <View style={styles.card}>
           <Text style={styles.emoji}>📩</Text>
@@ -117,11 +246,7 @@ export default function AuthScreen() {
           />
 
           <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={authLoading}>
-            {authLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>{t.verify}</Text>
-            )}
+            {authLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t.verify}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleResend}>
@@ -133,10 +258,7 @@ export default function AuthScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {LangSwitch}
 
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
@@ -200,6 +322,12 @@ export default function AuthScreen() {
             secureTextEntry
           />
 
+          {!isSignUp && (
+            <TouchableOpacity onPress={() => setStep('forgot-email')} style={{ alignSelf: 'flex-end', marginBottom: 8 }}>
+              <Text style={styles.forgotText}>{t.forgotPassword}</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.button} onPress={handleAuth} disabled={authLoading}>
             {authLoading ? (
               <ActivityIndicator color="#fff" />
@@ -209,9 +337,7 @@ export default function AuthScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
-            <Text style={styles.switchText}>
-              {isSignUp ? t.haveAccount : t.noAccount}
-            </Text>
+            <Text style={styles.switchText}>{isSignUp ? t.haveAccount : t.noAccount}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -220,43 +346,13 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#FCEEF3',
-  },
-  langSwitch: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  langText: {
-    fontSize: 14,
-    color: '#8B7AA8',
-    fontWeight: '600',
-    paddingHorizontal: 4,
-  },
-  langActive: {
-    color: '#4A2C6D',
-  },
-  langDivider: {
-    color: '#8B7AA8',
-  },
-  brandEmoji: {
-    fontSize: 44,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  brandTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 24,
-    color: '#4A2C6D',
-  },
+  container: { flex: 1, padding: 24, backgroundColor: '#FCEEF3' },
+  langSwitch: { position: 'absolute', top: 60, right: 24, flexDirection: 'row', alignItems: 'center', zIndex: 1 },
+  langText: { fontSize: 14, color: '#8B7AA8', fontWeight: '600', paddingHorizontal: 4 },
+  langActive: { color: '#4A2C6D' },
+  langDivider: { color: '#8B7AA8' },
+  brandEmoji: { fontSize: 44, textAlign: 'center', marginBottom: 4 },
+  brandTitle: { fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 24, color: '#4A2C6D' },
   card: {
     backgroundColor: '#fff',
     borderRadius: 28,
@@ -268,20 +364,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   emoji: { fontSize: 40, textAlign: 'center', marginBottom: 4 },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 6,
-    color: '#4A2C6D',
-  },
-  subtitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#4A2C6D',
-  },
+  title: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 6, color: '#4A2C6D' },
+  subtitle: { fontSize: 15, fontWeight: '700', textAlign: 'center', marginBottom: 20, color: '#4A2C6D' },
   input: {
     backgroundColor: '#FCEEF3',
     borderRadius: 14,
@@ -292,12 +376,8 @@ const styles = StyleSheet.create({
     borderColor: '#F0D9E8',
     color: '#2D1B3D',
   },
-  codeInput: {
-    textAlign: 'center',
-    fontSize: 26,
-    letterSpacing: 6,
-    fontWeight: '700',
-  },
+  codeInput: { textAlign: 'center', fontSize: 26, letterSpacing: 6, fontWeight: '700' },
+  forgotText: { color: '#8E5FBF', fontSize: 13, fontWeight: '600' },
   button: {
     backgroundColor: '#8E5FBF',
     borderRadius: 14,
@@ -310,15 +390,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  switchText: {
-    textAlign: 'center',
-    marginTop: 16,
-    color: '#8B7AA8',
-    fontSize: 13,
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  switchText: { textAlign: 'center', marginTop: 16, color: '#8B7AA8', fontSize: 13 },
 });

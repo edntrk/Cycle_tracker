@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
 
-export default function ProfileScreen({ userId }: { userId: string }) {
+export default function ProfileScreen({ userId, onNavigate }: { userId: string; onNavigate?: (tab: string) => void }) {
   const { t, lang, setLang } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,7 +61,7 @@ export default function ProfileScreen({ userId }: { userId: string }) {
     });
   }
 
-  async function handlePickAvatar() {
+  async function pickAndUploadAvatar() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(t.error, lang === 'tr' ? 'Fotoğraf erişimi gerekli.' : 'Photo library access is required.');
@@ -108,6 +108,42 @@ export default function ProfileScreen({ userId }: { userId: string }) {
     }
   }
 
+  async function removeAvatar() {
+    setUploadingAvatar(true);
+    try {
+      await supabase.storage.from('avatars').remove([`${userId}/avatar.jpg`]);
+      await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId);
+      setAvatarUrl(null);
+    } catch (err: any) {
+      Alert.alert(t.error, err.message || 'Failed to remove photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  function handleAvatarPress() {
+    const options: any[] = [
+      {
+        text: lang === 'tr' ? 'Fotoğraf Değiştir' : 'Change Photo',
+        onPress: pickAndUploadAvatar,
+      },
+    ];
+    if (avatarUrl) {
+      options.push({
+        text: lang === 'tr' ? 'Kaldır' : 'Remove',
+        style: 'destructive',
+        onPress: removeAvatar,
+      });
+    }
+    options.push({ text: t.cancel, style: 'cancel' });
+
+    Alert.alert(
+      lang === 'tr' ? 'Profil Fotoğrafı' : 'Profile Photo',
+      undefined,
+      options
+    );
+  }
+
   async function handleSave() {
     setSaving(true);
     const { error } = await supabase
@@ -150,9 +186,15 @@ export default function ProfileScreen({ userId }: { userId: string }) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {onNavigate && (<TouchableOpacity onPress={() => onNavigate('home')} style={{ marginBottom: 12 }}><Text style={{ color: '#8E5FBF', fontWeight: '700', fontSize: 15 }}>{lang === 'tr' ? '‹ Geri' : '‹ Back'}</Text></TouchableOpacity>)}
       <Text style={styles.title}>👤 {t.profileTitle}</Text>
 
-      <TouchableOpacity style={styles.avatarWrapper} onPress={handlePickAvatar} disabled={uploadingAvatar}>
+      <TouchableOpacity
+        style={styles.avatarWrapper}
+        onPress={handleAvatarPress}
+        onLongPress={handleAvatarPress}
+        disabled={uploadingAvatar}
+      >
         {uploadingAvatar ? (
           <View style={styles.avatarPlaceholder}>
             <ActivityIndicator color="#8E5FBF" />
