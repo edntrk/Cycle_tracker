@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
+import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
 
 export default function OnboardingScreen({
   userId,
@@ -21,11 +22,23 @@ export default function OnboardingScreen({
   userId: string;
   onComplete: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [lastPeriodDate, setLastPeriodDate] = useState('');
   const [cycleLength, setCycleLength] = useState('28');
   const [periodLength, setPeriodLength] = useState('5');
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  function toggleCondition(id: string) {
+    if (id === 'none') {
+      setSelectedConditions(['none']);
+      return;
+    }
+    setSelectedConditions((prev) => {
+      const withoutNone = prev.filter((c) => c !== 'none');
+      return withoutNone.includes(id) ? withoutNone.filter((c) => c !== id) : [...withoutNone, id];
+    });
+  }
 
   async function handleContinue() {
     if (lastPeriodDate && !/^\d{4}-\d{2}-\d{2}$/.test(lastPeriodDate)) {
@@ -40,6 +53,7 @@ export default function OnboardingScreen({
         last_period_start: lastPeriodDate || null,
         avg_cycle_length: parseInt(cycleLength, 10) || 28,
         avg_period_length: parseInt(periodLength, 10) || 5,
+        health_conditions: selectedConditions.filter((c) => c !== 'none'),
         onboarding_completed: true,
       })
       .eq('id', userId);
@@ -91,6 +105,33 @@ export default function OnboardingScreen({
           />
 
           <Text style={styles.hint}>{t.notSure}</Text>
+
+          <Text style={styles.label}>
+            {lang === 'tr'
+              ? 'Tanı konmuş bir sağlık durumun var mı? (opsiyonel)'
+              : 'Do you have any diagnosed health conditions? (optional)'}
+          </Text>
+          <View style={styles.conditionsRow}>
+            {HEALTH_CONDITIONS.map((cond) => {
+              const active = selectedConditions.includes(cond.id);
+              return (
+                <TouchableOpacity
+                  key={cond.id}
+                  style={[styles.conditionChip, active && styles.conditionChipActive]}
+                  onPress={() => toggleCondition(cond.id)}
+                >
+                  <Text style={[styles.conditionChipText, active && styles.conditionChipTextActive]}>
+                    {lang === 'tr' ? cond.labelTr : cond.labelEn}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.conditionHint}>
+            {lang === 'tr'
+              ? 'Bu bilgi, semptom analizinde sana daha uygun bilgi vermemize yardımcı olur. İstediğin zaman profilinden değiştirebilirsin.'
+              : 'This helps us give you more relevant information during symptom analysis. You can change it anytime from your profile.'}
+          </Text>
 
           <TouchableOpacity style={styles.button} onPress={handleContinue} disabled={loading}>
             {loading ? (
@@ -162,6 +203,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontStyle: 'italic',
   },
+  conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  conditionChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    backgroundColor: '#FCEEF3',
+    borderWidth: 1.5,
+    borderColor: '#F0D9E8',
+  },
+  conditionChipActive: { backgroundColor: '#8E5FBF', borderColor: '#8E5FBF' },
+  conditionChipText: { fontSize: 12, color: '#4A2C6D', fontWeight: '600' },
+  conditionChipTextActive: { color: '#fff' },
+  conditionHint: { fontSize: 11, color: '#B08BC9', fontStyle: 'italic', marginBottom: 20 },
   button: {
     backgroundColor: '#8E5FBF',
     borderRadius: 14,

@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
+import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
 
 export default function ProfileScreen({ userId }: { userId: string }) {
   const { t, lang, setLang } = useLanguage();
@@ -26,12 +27,13 @@ export default function ProfileScreen({ userId }: { userId: string }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, age, years_since_first_period, phone, email, avatar_url')
+        .select('full_name, age, years_since_first_period, phone, email, avatar_url, health_conditions')
         .eq('id', userId)
         .single();
 
@@ -42,10 +44,22 @@ export default function ProfileScreen({ userId }: { userId: string }) {
         setPhone(data.phone || '');
         setEmail(data.email || '');
         setAvatarUrl(data.avatar_url || null);
+        setSelectedConditions(data.health_conditions || []);
       }
       setLoading(false);
     })();
   }, [userId]);
+
+  function toggleCondition(id: string) {
+    if (id === 'none') {
+      setSelectedConditions(['none']);
+      return;
+    }
+    setSelectedConditions((prev) => {
+      const withoutNone = prev.filter((c) => c !== 'none');
+      return withoutNone.includes(id) ? withoutNone.filter((c) => c !== id) : [...withoutNone, id];
+    });
+  }
 
   async function handlePickAvatar() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -70,8 +84,7 @@ export default function ProfileScreen({ userId }: { userId: string }) {
       const asset = result.assets[0];
       if (!asset.base64) throw new Error('No image data');
 
-      const fileExt = 'jpg';
-      const filePath = `${userId}/avatar.${fileExt}`;
+      const filePath = `${userId}/avatar.jpg`;
       const arrayBuffer = Uint8Array.from(atob(asset.base64), (c) => c.charCodeAt(0));
 
       const { error: uploadError } = await supabase.storage
@@ -104,6 +117,7 @@ export default function ProfileScreen({ userId }: { userId: string }) {
         age: age ? parseInt(age, 10) : null,
         years_since_first_period: yearsSincePeriod ? parseInt(yearsSincePeriod, 10) : null,
         phone: phone || null,
+        health_conditions: selectedConditions.filter((c) => c !== 'none'),
       })
       .eq('id', userId);
     setSaving(false);
@@ -198,6 +212,26 @@ export default function ProfileScreen({ userId }: { userId: string }) {
         placeholderTextColor="#8B7AA8"
       />
 
+      <Text style={styles.label}>
+        {lang === 'tr' ? 'Tanı konmuş sağlık durumları' : 'Diagnosed health conditions'}
+      </Text>
+      <View style={styles.conditionsRow}>
+        {HEALTH_CONDITIONS.map((cond) => {
+          const active = selectedConditions.includes(cond.id);
+          return (
+            <TouchableOpacity
+              key={cond.id}
+              style={[styles.conditionChip, active && styles.conditionChipActive]}
+              onPress={() => toggleCondition(cond.id)}
+            >
+              <Text style={[styles.conditionChipText, active && styles.conditionChipTextActive]}>
+                {lang === 'tr' ? cond.labelTr : cond.labelEn}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>{t.saveChanges}</Text>}
       </TouchableOpacity>
@@ -257,6 +291,18 @@ const styles = StyleSheet.create({
     color: '#2D1B3D',
   },
   inputDisabled: { opacity: 0.6 },
+  conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  conditionChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#E8A9C9',
+  },
+  conditionChipActive: { backgroundColor: '#8E5FBF', borderColor: '#8E5FBF' },
+  conditionChipText: { fontSize: 12, color: '#4A2C6D', fontWeight: '600' },
+  conditionChipTextActive: { color: '#fff' },
   saveButton: { backgroundColor: '#8E5FBF', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   signOutButton: { alignItems: 'center', padding: 16, marginTop: 12 },

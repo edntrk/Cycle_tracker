@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import HomeScreen from './HomeScreen';
 import CalendarScreen from './CalendarScreen';
+import AppointmentsScreen from './AppointmentsScreen';
 import MedicationsScreen from './MedicationsScreen';
-import ProfileScreen from './ProfileScreen';
 import SymptomsScreen from './SymptomsScreen';
+import LearnScreen from './LearnScreen';
+import ProfileScreen from './ProfileScreen';
 import { useLanguage } from '@/lib/LanguageContext';
+
+type Tab = 'home' | 'calendar' | 'appointments' | 'meds' | 'symptoms' | 'learn' | 'profile';
 
 export default function MainTabs({
   userId,
@@ -15,14 +19,18 @@ export default function MainTabs({
   profile: any;
 }) {
   const { t } = useLanguage();
-  const [tab, setTab] = useState<'home' | 'calendar' | 'meds' | 'symptoms' | 'profile'>('home');
+  const [tab, setTab] = useState<Tab>('home');
 
   return (
     <View style={{ flex: 1 }}>
-      {tab === 'home' && <HomeScreen profile={profile} onNavigate={(t) => setTab(t)} />}
+      {tab === 'home' && (
+        <HomeScreen profile={profile} onNavigate={(dest) => setTab(dest as Tab)} />
+      )}
       {tab === 'calendar' && <CalendarScreen userId={userId} />}
+      {tab === 'appointments' && <AppointmentsScreen userId={userId} />}
       {tab === 'meds' && <MedicationsScreen userId={userId} />}
       {tab === 'symptoms' && <SymptomsScreen userId={userId} profile={profile} />}
+      {tab === 'learn' && <LearnScreen />}
       {tab === 'profile' && <ProfileScreen userId={userId} />}
 
       <View style={styles.tabBar}>
@@ -33,6 +41,10 @@ export default function MainTabs({
         <TouchableOpacity style={styles.tabItem} onPress={() => setTab('calendar')}>
           <Text style={[styles.tabIcon, tab === 'calendar' && styles.tabActive]}>📅</Text>
           <Text style={[styles.tabLabel, tab === 'calendar' && styles.tabActive]}>{t.tabCalendar}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setTab('appointments')}>
+          <Text style={[styles.tabIcon, tab === 'appointments' && styles.tabActive]}>🗓️</Text>
+          <Text style={[styles.tabLabel, tab === 'appointments' && styles.tabActive]}>{t.tabAppointments}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => setTab('meds')}>
           <Text style={[styles.tabIcon, tab === 'meds' && styles.tabActive]}>💊</Text>
@@ -60,21 +72,8 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingTop: 8,
   },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  tabIcon: {
-    fontSize: 20,
-    opacity: 0.4,
-  },
-  tabLabel: {
-    fontSize: 10,
-    color: '#8B7AA8',
-    opacity: 0.6,
-    marginTop: 2,
-  },
-  tabActive: {
-    opacity: 1,
-  },
+  tabItem: { flex: 1, alignItems: 'center' },
+  tabIcon: { fontSize: 18, opacity: 0.4 },
+  tabLabel: { fontSize: 9, color: '#8B7AA8', opacity: 0.6, marginTop: 2 },
+  tabActive: { opacity: 1 },
 });

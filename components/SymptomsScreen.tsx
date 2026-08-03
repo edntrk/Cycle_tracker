@@ -15,6 +15,7 @@ import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { calculateCycleInfo } from '@/lib/cycleCalculations';
+import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
 
 const EMERGENCY_KEYWORDS = [
   'fainted', 'fainting', 'unconscious', 'severe bleeding', 'soaking through',
@@ -33,6 +34,7 @@ interface Profile {
   last_period_start: string;
   avg_cycle_length: number;
   avg_period_length: number;
+  health_conditions?: string[] | null;
 }
 
 const phaseNameEn: Record<string, string> = {
@@ -69,14 +71,28 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
   }, [loadHistory]);
 
   function buildCycleContext(): string | undefined {
-    if (!profile?.last_period_start) return undefined;
-    const info = calculateCycleInfo(
-      profile.last_period_start,
-      profile.avg_cycle_length,
-      profile.avg_period_length
-    );
-    const phaseName = phaseNameEn[info.phase];
-    return `User is currently in the ${phaseName} of their cycle, ${info.daysUntilNextPeriod} day(s) until their next expected period.`;
+    const parts: string[] = [];
+
+    if (profile?.last_period_start) {
+      const info = calculateCycleInfo(
+        profile.last_period_start,
+        profile.avg_cycle_length,
+        profile.avg_period_length
+      );
+      const phaseName = phaseNameEn[info.phase];
+      parts.push(
+        `User is currently in the ${phaseName} of their cycle, ${info.daysUntilNextPeriod} day(s) until their next expected period.`
+      );
+    }
+
+    if (profile?.health_conditions && profile.health_conditions.length > 0) {
+      const labels = profile.health_conditions
+        .map((id) => HEALTH_CONDITIONS.find((c) => c.id === id)?.labelEn || id)
+        .join(', ');
+      parts.push(`User has disclosed the following diagnosed condition(s): ${labels}.`);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : undefined;
   }
 
   async function handleAnalyze() {

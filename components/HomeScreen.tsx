@@ -41,7 +41,7 @@ export default function HomeScreen({
     avg_cycle_length: number;
     avg_period_length: number;
   };
-  onNavigate?: (tab: 'symptoms' | 'meds') => void;
+  onNavigate?: (tab: string) => void;
 }) {
   const { t, lang } = useLanguage();
 
@@ -68,7 +68,6 @@ export default function HomeScreen({
         );
       }
     })();
-    // Re-run only when the underlying cycle data or language changes
   }, [profile.last_period_start, profile.avg_cycle_length, profile.avg_period_length, lang]);
 
   const phaseLabel = {
@@ -127,37 +126,37 @@ export default function HomeScreen({
       </View>
 
       {onNavigate && (
-        <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('symptoms')}>
-            <Text style={styles.quickEmoji}>🩺</Text>
-            <Text style={styles.quickLabel}>{t.tabSymptoms}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('meds')}>
-            <Text style={styles.quickEmoji}>💊</Text>
-            <Text style={styles.quickLabel}>{t.tabMeds}</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={styles.quickRow}>
+            <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('symptoms')}>
+              <Text style={styles.quickEmoji}>🩺</Text>
+              <Text style={styles.quickLabel}>{t.tabSymptoms}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('meds')}>
+              <Text style={styles.quickEmoji}>💊</Text>
+              <Text style={styles.quickLabel}>{t.tabMeds}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.quickRow}>
+            <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('appointments')}>
+              <Text style={styles.quickEmoji}>🗓️</Text>
+              <Text style={styles.quickLabel}>{t.tabAppointments}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('learn')}>
+              <Text style={styles.quickEmoji}>📖</Text>
+              <Text style={styles.quickLabel}>{lang === 'tr' ? 'Öğren' : 'Learn'}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FCEEF3',
-  },
-  content: {
-    padding: 20,
-    paddingTop: 70,
-    paddingBottom: 40,
-  },
-  greeting: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#4A2C6D',
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: '#FCEEF3' },
+  content: { padding: 20, paddingTop: 70, paddingBottom: 40 },
+  greeting: { fontSize: 22, fontWeight: '700', color: '#4A2C6D', marginBottom: 20 },
   phaseCard: {
     borderRadius: 28,
     padding: 28,
@@ -169,82 +168,19 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 6,
   },
-  phaseEmoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  phaseLabel: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 6,
-  },
-  statusText: {
-    fontSize: 15,
-    color: '#fff',
-    opacity: 0.95,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  progressTrack: {
-    width: '100%',
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 3,
-  },
-  fertileBadge: {
-    marginTop: 14,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-  },
-  fertileBadgeText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E8A9C9',
-  },
-  infoLabel: {
-    fontSize: 13,
-    color: '#8B7AA8',
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#4A2C6D',
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  quickCard: {
-    flex: 1,
-    backgroundColor: '#F3E9F7',
-    borderRadius: 18,
-    padding: 18,
-    alignItems: 'center',
-  },
+  phaseEmoji: { fontSize: 48, marginBottom: 8 },
+  phaseLabel: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  statusText: { fontSize: 15, color: '#fff', opacity: 0.95, textAlign: 'center', marginBottom: 14 },
+  progressTrack: { width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 3 },
+  fertileBadge: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14 },
+  fertileBadgeText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  infoRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  infoCard: { flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#E8A9C9' },
+  infoLabel: { fontSize: 13, color: '#8B7AA8', marginBottom: 4 },
+  infoValue: { fontSize: 17, fontWeight: '700', color: '#4A2C6D' },
+  quickRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  quickCard: { flex: 1, backgroundColor: '#F3E9F7', borderRadius: 18, padding: 18, alignItems: 'center' },
   quickEmoji: { fontSize: 26, marginBottom: 6 },
   quickLabel: { fontSize: 13, fontWeight: '600', color: '#4A2C6D' },
 });
