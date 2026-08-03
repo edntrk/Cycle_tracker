@@ -73,7 +73,6 @@ export default function AuthScreen() {
     if (error) {
       Alert.alert(t.error, t.invalidCode);
     }
-    // On success, the auth listener in _layout.tsx picks up the new session automatically.
   }
 
   async function handleResend() {
@@ -102,30 +101,33 @@ export default function AuthScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {LangSwitch}
-        <Text style={styles.title}>🌸 {t.enterCode}</Text>
-        <Text style={styles.subtitle}>{t.codeInstructions} {email}</Text>
+        <View style={styles.card}>
+          <Text style={styles.emoji}>📩</Text>
+          <Text style={styles.title}>{t.enterCode}</Text>
+          <Text style={styles.subtitle}>{t.codeInstructions} {email}</Text>
 
-        <TextInput
-          style={[styles.input, styles.codeInput]}
-          placeholder="00000000"
-          placeholderTextColor="#B8A8C8"
-          value={code}
-          onChangeText={setCode}
-          keyboardType="number-pad"
-          maxLength={8}
-        />
+          <TextInput
+            style={[styles.input, styles.codeInput]}
+            placeholder="00000000"
+            placeholderTextColor="#C9B8D8"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            maxLength={8}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={authLoading}>
-          {authLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>{t.verify}</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={authLoading}>
+            {authLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>{t.verify}</Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleResend}>
-          <Text style={styles.switchText}>{t.resendCode}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={handleResend}>
+            <Text style={styles.switchText}>{t.resendCode}</Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     );
   }
@@ -138,76 +140,80 @@ export default function AuthScreen() {
       {LangSwitch}
 
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>🌸 {t.appName}</Text>
-        <Text style={styles.subtitle}>{isSignUp ? t.createAccount : t.signIn}</Text>
+        <Text style={styles.brandEmoji}>🌸</Text>
+        <Text style={styles.brandTitle}>{t.appName}</Text>
 
-        {isSignUp && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder={t.fullName}
-              placeholderTextColor="#8B7AA8"
-              value={fullName}
-              onChangeText={setFullName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t.age}
-              placeholderTextColor="#8B7AA8"
-              value={age}
-              onChangeText={setAge}
-              keyboardType="number-pad"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t.yearsSincePeriod}
-              placeholderTextColor="#8B7AA8"
-              value={yearsSincePeriod}
-              onChangeText={setYearsSincePeriod}
-              keyboardType="number-pad"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t.phone}
-              placeholderTextColor="#8B7AA8"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
-          </>
-        )}
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>{isSignUp ? t.createAccount : t.signIn}</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder={t.email}
-          placeholderTextColor="#8B7AA8"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder={t.password}
-          placeholderTextColor="#8B7AA8"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
-        <TouchableOpacity style={styles.button} onPress={handleAuth} disabled={authLoading}>
-          {authLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>{isSignUp ? t.signUp : t.signIn}</Text>
+          {isSignUp && (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder={t.fullName}
+                placeholderTextColor="#B8A8C8"
+                value={fullName}
+                onChangeText={setFullName}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder={t.age}
+                placeholderTextColor="#B8A8C8"
+                value={age}
+                onChangeText={setAge}
+                keyboardType="number-pad"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder={t.yearsSincePeriod}
+                placeholderTextColor="#B8A8C8"
+                value={yearsSincePeriod}
+                onChangeText={setYearsSincePeriod}
+                keyboardType="number-pad"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder={t.phone}
+                placeholderTextColor="#B8A8C8"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+              />
+            </>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
-          <Text style={styles.switchText}>
-            {isSignUp ? t.haveAccount : t.noAccount}
-          </Text>
-        </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder={t.email}
+            placeholderTextColor="#B8A8C8"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder={t.password}
+            placeholderTextColor="#B8A8C8"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          <TouchableOpacity style={styles.button} onPress={handleAuth} disabled={authLoading}>
+            {authLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>{isSignUp ? t.signUp : t.signIn}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
+            <Text style={styles.switchText}>
+              {isSignUp ? t.haveAccount : t.noAccount}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -239,50 +245,80 @@ const styles = StyleSheet.create({
   langDivider: {
     color: '#8B7AA8',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  brandEmoji: {
+    fontSize: 44,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  brandTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 24,
+    color: '#4A2C6D',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    padding: 24,
+    shadowColor: '#4A2C6D',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  emoji: { fontSize: 40, textAlign: 'center', marginBottom: 4 },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 6,
     color: '#4A2C6D',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 24,
-    color: '#6B5B85',
+    marginBottom: 20,
+    color: '#4A2C6D',
   },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#FCEEF3',
+    borderRadius: 14,
     padding: 14,
     marginBottom: 12,
     fontSize: 16,
     borderWidth: 1.5,
-    borderColor: '#E8A9C9',
+    borderColor: '#F0D9E8',
     color: '#2D1B3D',
   },
   codeInput: {
     textAlign: 'center',
-    fontSize: 28,
-    letterSpacing: 8,
-    fontWeight: '600',
+    fontSize: 26,
+    letterSpacing: 6,
+    fontWeight: '700',
   },
   button: {
     backgroundColor: '#8E5FBF',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#8E5FBF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 3,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   switchText: {
     textAlign: 'center',
     marginTop: 16,
-    color: '#6B5B85',
+    color: '#8B7AA8',
+    fontSize: 13,
   },
 });

@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { useLanguage } from '@/lib/LanguageContext';
-import { supabase } from '@/lib/supabase';
 import { calculateCycleInfo, CyclePhase } from '@/lib/cycleCalculations';
+import { schedulePeriodReminders } from '@/lib/periodReminders';
 
 const phaseEmoji: Record<CyclePhase, string> = {
   menstrual: '🩸',
@@ -17,8 +19,21 @@ const phaseColor: Record<CyclePhase, string> = {
   luteal: '#8E5FBF',
 };
 
+function getGreeting(lang: 'en' | 'tr') {
+  const hour = new Date().getHours();
+  if (lang === 'tr') {
+    if (hour < 12) return 'Günaydın';
+    if (hour < 18) return 'İyi günler';
+    return 'İyi akşamlar';
+  }
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function HomeScreen({
   profile,
+  onNavigate,
 }: {
   profile: {
     full_name: string | null;
@@ -26,14 +41,35 @@ export default function HomeScreen({
     avg_cycle_length: number;
     avg_period_length: number;
   };
+  onNavigate?: (tab: 'symptoms' | 'meds') => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const info = calculateCycleInfo(
     profile.last_period_start,
     profile.avg_cycle_length,
     profile.avg_period_length
   );
+
+  useEffect(() => {
+    (async () => {
+      const { status: existing } = await Notifications.getPermissionsAsync();
+      let granted = existing === 'granted';
+      if (!granted) {
+        const { status } = await Notifications.requestPermissionsAsync();
+        granted = status === 'granted';
+      }
+      if (granted) {
+        await schedulePeriodReminders(
+          profile.last_period_start,
+          profile.avg_cycle_length,
+          profile.avg_period_length,
+          lang
+        );
+      }
+    })();
+    // Re-run only when the underlying cycle data or language changes
+  }, [profile.last_period_start, profile.avg_cycle_length, profile.avg_period_length, lang]);
 
   const phaseLabel = {
     menstrual: t.phaseMenstrual,
@@ -45,9 +81,16 @@ export default function HomeScreen({
   const formatDate = (d: Date) =>
     d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+  const cycleProgress = Math.min(
+    Math.max((profile.avg_cycle_length - info.daysUntilNextPeriod) / profile.avg_cycle_length, 0),
+    1
+  );
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {profile.full_name && <Text style={styles.greeting}>👋 {profile.full_name}</Text>}
+      <Text style={styles.greeting}>
+        {getGreeting(lang)}{profile.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''} 👋
+      </Text>
 
       <View style={[styles.phaseCard, { backgroundColor: phaseColor[info.phase] }]}>
         <Text style={styles.phaseEmoji}>{phaseEmoji[info.phase]}</Text>
@@ -60,6 +103,10 @@ export default function HomeScreen({
             {info.daysUntilNextPeriod} {t.daysUntilPeriod}
           </Text>
         )}
+
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${cycleProgress * 100}%` }]} />
+        </View>
 
         {info.isInFertileWindow && (
           <View style={styles.fertileBadge}>
@@ -79,9 +126,18 @@ export default function HomeScreen({
         </View>
       </View>
 
-      <TouchableOpacity style={styles.signOutButton} onPress={() => supabase.auth.signOut()}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
+      {onNavigate && (
+        <View style={styles.quickRow}>
+          <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('symptoms')}>
+            <Text style={styles.quickEmoji}>🩺</Text>
+            <Text style={styles.quickLabel}>{t.tabSymptoms}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('meds')}>
+            <Text style={styles.quickEmoji}>💊</Text>
+            <Text style={styles.quickLabel}>{t.tabMeds}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -94,6 +150,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingTop: 70,
+    paddingBottom: 40,
   },
   greeting: {
     fontSize: 22,
@@ -102,10 +159,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   phaseCard: {
-    borderRadius: 24,
+    borderRadius: 28,
     padding: 28,
     alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#4A2C6D',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 6,
   },
   phaseEmoji: {
     fontSize: 48,
@@ -122,6 +184,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     opacity: 0.95,
     textAlign: 'center',
+    marginBottom: 14,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 3,
   },
   fertileBadge: {
     marginTop: 14,
@@ -138,12 +213,12 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   infoCard: {
     flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1.5,
@@ -159,12 +234,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#4A2C6D',
   },
-  signOutButton: {
+  quickRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickCard: {
+    flex: 1,
+    backgroundColor: '#F3E9F7',
+    borderRadius: 18,
+    padding: 18,
     alignItems: 'center',
-    padding: 12,
   },
-  signOutText: {
-    color: '#B08BC9',
-    fontSize: 14,
-  },
+  quickEmoji: { fontSize: 26, marginBottom: 6 },
+  quickLabel: { fontSize: 13, fontWeight: '600', color: '#4A2C6D' },
 });
