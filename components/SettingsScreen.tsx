@@ -10,7 +10,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -96,31 +96,97 @@ export default function SettingsScreen({
   async function handleExportData() {
     setExporting(true);
     try {
-      const [profile, cycleEntries, symptomEntries, appointments, medications, symptomAnalyses] = await Promise.all([
+      const [profile, cycleEntries, symptomEntries, appointments, medications] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('cycle_entries').select('*').eq('user_id', userId),
-        supabase.from('symptom_entries').select('*').eq('user_id', userId),
-        supabase.from('appointments').select('*').eq('user_id', userId),
+        supabase.from('cycle_entries').select('*').eq('user_id', userId).order('date'),
+        supabase.from('symptom_entries').select('*').eq('user_id', userId).order('date'),
+        supabase.from('appointments').select('*').eq('user_id', userId).order('appointment_date'),
         supabase.from('medications').select('*').eq('user_id', userId),
-        supabase.from('symptom_analyses').select('*').eq('user_id', userId),
       ]);
 
-      const exportData = {
-        exported_at: new Date().toISOString(),
-        profile: profile.data,
-        cycle_entries: cycleEntries.data,
-        symptom_entries: symptomEntries.data,
-        appointments: appointments.data,
-        medications: medications.data,
-        symptom_analyses: symptomAnalyses.data,
-      };
+      const p = profile.data;
+      const cycles = cycleEntries.data || [];
+      const symptoms = symptomEntries.data || [];
+      const appts = appointments.data || [];
+      const meds = medications.data || [];
 
-      const fileUri = FileSystem.documentDirectory + 'cycle-tracker-data.json';
-      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(exportData, null, 2));
+      const isTr = lang === 'tr';
+      const dateNow = new Date().toLocaleDateString(isTr ? 'tr-TR' : 'en-US');
+
+      const flowLabel = (f: string) =>
+        isTr
+          ? { none: 'Yok', light: 'Hafif', medium: 'Orta', heavy: 'Yoğun' }[f] || f
+          : f.charAt(0).toUpperCase() + f.slice(1);
+
+      const rowsHtml = (arr: any[], renderRow: (item: any) => string, emptyText: string) =>
+        arr.length > 0 ? arr.map(renderRow).join('') : `<tr><td colspan="4" class="empty">${emptyText}</td></tr>`;
+
+      const html = `
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #2D1B3D; }
+            h1 { color: #4A2C6D; font-size: 22px; margin-bottom: 4px; }
+            .subtitle { color: #8B7AA8; font-size: 12px; margin-bottom: 24px; }
+            h2 { color: #4A2C6D; font-size: 16px; margin-top: 28px; margin-bottom: 8px; border-bottom: 2px solid #F0D9E8; padding-bottom: 6px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+            th { background: #F3E9F7; color: #4A2C6D; text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; }
+            td { padding: 8px; font-size: 12px; border-bottom: 1px solid #F3E9F7; }
+            .empty { color: #B08BC9; font-style: italic; text-align: center; }
+            .profile-box { background: #FCEEF3; border-radius: 12px; padding: 16px; margin-bottom: 8px; }
+            .profile-box p { margin: 4px 0; font-size: 13px; }
+            .disclaimer { margin-top: 32px; font-size: 10px; color: #B08BC9; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h1>🌸 ${isTr ? 'Döngü Takip Veri Raporu' : 'Cycle Tracker Data Report'}</h1>
+          <div class="subtitle">${isTr ? 'Oluşturulma tarihi' : 'Generated on'}: ${dateNow}</div>
+
+          <h2>${isTr ? 'Profil' : 'Profile'}</h2>
+          <div class="profile-box">
+            <p><b>${isTr ? 'İsim' : 'Name'}:</b> ${p?.full_name || '-'}</p>
+            <p><b>Email:</b> ${p?.email || '-'}</p>
+            <p><b>${isTr ? 'Ortalama döngü uzunluğu' : 'Avg cycle length'}:</b> ${p?.avg_cycle_length || '-'} ${isTr ? 'gün' : 'days'}</p>
+            <p><b>${isTr ? 'Ortalama adet süresi' : 'Avg period length'}:</b> ${p?.avg_period_length || '-'} ${isTr ? 'gün' : 'days'}</p>
+          </div>
+
+          <h2>${isTr ? 'Döngü Kayıtları' : 'Cycle Entries'} (${cycles.length})</h2>
+          <table>
+            <tr><th>${isTr ? 'Tarih' : 'Date'}</th><th>${isTr ? 'Akış' : 'Flow'}</th></tr>
+            ${rowsHtml(cycles, (c) => `<tr><td>${c.date}</td><td>${flowLabel(c.flow_intensity)}</td></tr>`, isTr ? 'Kayıt yok' : 'No entries')}
+          </table>
+
+          <h2>${isTr ? 'Semptomlar' : 'Symptoms'} (${symptoms.length})</h2>
+          <table>
+            <tr><th>${isTr ? 'Tarih' : 'Date'}</th><th>${isTr ? 'Tür' : 'Type'}</th></tr>
+            ${rowsHtml(symptoms, (s) => `<tr><td>${s.date}</td><td>${s.symptom_type}</td></tr>`, isTr ? 'Kayıt yok' : 'No entries')}
+          </table>
+
+          <h2>${isTr ? 'Randevular' : 'Appointments'} (${appts.length})</h2>
+          <table>
+            <tr><th>${isTr ? 'Tarih' : 'Date'}</th><th>${isTr ? 'Hastane' : 'Hospital'}</th><th>${isTr ? 'Doktor' : 'Doctor'}</th></tr>
+            ${rowsHtml(appts, (a) => `<tr><td>${a.appointment_date}</td><td>${a.hospital_name || '-'}</td><td>${a.doctor_name || '-'}</td></tr>`, isTr ? 'Kayıt yok' : 'No entries')}
+          </table>
+
+          <h2>${isTr ? 'İlaçlar' : 'Medications'} (${meds.length})</h2>
+          <table>
+            <tr><th>${isTr ? 'İsim' : 'Name'}</th><th>${isTr ? 'Doz' : 'Dosage'}</th></tr>
+            ${rowsHtml(meds, (m) => `<tr><td>${m.name}</td><td>${m.dosage || '-'}</td></tr>`, isTr ? 'Kayıt yok' : 'No entries')}
+          </table>
+
+          <div class="disclaimer">${isTr
+            ? 'Bu rapor kişisel kullanım içindir, tıbbi tavsiye değildir.'
+            : 'This report is for personal use and does not constitute medical advice.'}</div>
+        </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({ html });
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(fileUri, { mimeType: 'application/json' });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       } else {
         Alert.alert(t.success, t.exportSuccess);
       }
