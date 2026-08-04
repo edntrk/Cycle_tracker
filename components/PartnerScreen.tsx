@@ -75,11 +75,10 @@ export default function PartnerScreen({
 
     const activeIncoming = (incoming || []).find((i) => i.status === 'active');
     if (activeIncoming) {
-      const { data: partnerProfile } = await supabase
-        .from('profiles')
-        .select('full_name, last_period_start, avg_cycle_length, avg_period_length')
-        .eq('id', activeIncoming.user_id)
-        .single();
+      const { data: partnerRows } = await supabase.rpc('get_partner_cycle_status', {
+        target_user_id: activeIncoming.user_id,
+      });
+      const partnerProfile = partnerRows?.[0];
 
       if (partnerProfile?.last_period_start) {
         const info = calculateCycleInfo(
@@ -135,12 +134,12 @@ export default function PartnerScreen({
   }
 
   async function handleAcceptInvite(inviteId: string) {
-    await supabase.from('partner_links').update({ status: 'active' }).eq('id', inviteId);
+    await supabase.rpc('respond_to_partner_invite', { invite_id: inviteId, accept: true });
     loadData();
   }
 
   async function handleDeclineInvite(inviteId: string) {
-    await supabase.from('partner_links').update({ status: 'revoked' }).eq('id', inviteId);
+    await supabase.rpc('respond_to_partner_invite', { invite_id: inviteId, accept: false });
     loadData();
   }
 

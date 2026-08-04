@@ -61,6 +61,7 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [savedRowId, setSavedRowId] = useState<string | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const loadHistory = useCallback(async () => {
@@ -130,6 +131,12 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
     loadHistory();
   }
 
+  async function handleFeedback(helpful: boolean) {
+    if (!savedRowId || feedbackGiven) return;
+    setFeedbackGiven(true);
+    await supabase.from('symptom_analyses').update({ was_helpful: helpful }).eq('id', savedRowId);
+  }
+
   async function handleSend() {
     if (!input.trim()) return;
 
@@ -170,6 +177,7 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
     setMessages([]);
     setEmergencyFlag(false);
     setSavedRowId(null);
+    setFeedbackGiven(false);
     setInput('');
   }
 
@@ -261,6 +269,24 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
                   ? '⚠️ Anlattıkların ciddi olabilir. Lütfen mümkün olan en kısa sürede bir doktora veya acil servise başvur.'
                   : '⚠️ What you described may be serious. Please seek medical care or an emergency room as soon as possible.'}
               </Text>
+            </View>
+          )}
+
+          {hasAssistantReply && !loading && (
+            <View style={styles.feedbackRow}>
+              {feedbackGiven ? (
+                <Text style={styles.feedbackThanks}>✓ {t.feedbackThanks}</Text>
+              ) : (
+                <>
+                  <Text style={styles.feedbackLabel}>{t.wasHelpful}</Text>
+                  <TouchableOpacity onPress={() => handleFeedback(true)} style={styles.feedbackBtn}>
+                    <Text style={styles.feedbackEmoji}>👍</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleFeedback(false)} style={styles.feedbackBtn}>
+                    <Text style={styles.feedbackEmoji}>👎</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
 
@@ -394,6 +420,11 @@ const styles = StyleSheet.create({
     borderColor: '#E88989',
   },
   emergencyText: { color: '#A13A3A', fontWeight: '600', fontSize: 13 },
+  feedbackRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  feedbackLabel: { fontSize: 12, color: '#8B7AA8' },
+  feedbackBtn: { backgroundColor: '#fff', borderRadius: 10, padding: 8, borderWidth: 1.5, borderColor: '#E8A9C9' },
+  feedbackEmoji: { fontSize: 14 },
+  feedbackThanks: { fontSize: 12, color: '#7CB88F', fontWeight: '700' },
   doctorSection: { backgroundColor: '#F3E9F7', borderRadius: 16, padding: 16, marginBottom: 10 },
   doctorTitle: { fontSize: 13, fontWeight: '700', color: '#4A2C6D', marginBottom: 10 },
   doctorButton: { backgroundColor: '#4A2C6D', borderRadius: 12, padding: 12, alignItems: 'center' },

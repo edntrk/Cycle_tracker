@@ -76,6 +76,41 @@ async function scheduleReminder(name: string, dosage: string | null, timeStr: st
   });
 }
 
+// For "as needed" courses with a defined date range: schedule individual one-off
+// notifications for each qualifying day, so reminders stop automatically after end_date.
+async function scheduleCourseReminders(
+  name: string,
+  dosage: string | null,
+  times: string[],
+  startDate: Date,
+  endDate: Date,
+  intervalDays: number
+) {
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  while (cursor <= end) {
+    for (const timeStr of times) {
+      const [hour, minute] = timeStr.split(':').map(Number);
+      const fireDate = new Date(cursor);
+      fireDate.setHours(hour, minute, 0, 0);
+
+      if (fireDate > new Date()) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `💊 ${name}`,
+            body: dosage ? `${dosage}` : 'Time to take your medication',
+          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireDate },
+        });
+      }
+    }
+    cursor.setDate(cursor.getDate() + Math.max(intervalDays, 1));
+  }
+}
+
 function formatTime(date: Date) {
   const hh = String(date.getHours()).padStart(2, '0');
   const mm = String(date.getMinutes()).padStart(2, '0');
@@ -268,7 +303,18 @@ export default function MedicationsScreen({ userId }: { userId: string }) {
     }
 
     if (!error && granted && timeStrings.length > 0) {
-      await Promise.all(timeStrings.map((ts) => scheduleReminder(name.trim(), dosage.trim() || null, ts)));
+      if (isAsNeeded) {
+        await scheduleCourseReminders(
+          name.trim(),
+          dosage.trim() || null,
+          timeStrings,
+          startDate,
+          endDate,
+          parseInt(intervalDays, 10) || 1
+        );
+      } else {
+        await Promise.all(timeStrings.map((ts) => scheduleReminder(name.trim(), dosage.trim() || null, ts)));
+      }
     }
 
     setSaving(false);
