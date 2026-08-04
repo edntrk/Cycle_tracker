@@ -28,7 +28,7 @@ export default function MainTabs({
         <HomeScreen profile={profile} userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />
       )}
       {tab === 'calendar' && <CalendarScreen userId={userId} />}
-      {tab === 'appointments' && <AppointmentsScreen userId={userId} />}
+      {tab === 'appointments' && <AppointmentsScreen userId={userId} profile={profile} />}
       {tab === 'meds' && <MedicationsScreen userId={userId} />}
       {tab === 'symptoms' && <SymptomsScreen userId={userId} profile={profile} />}
       {tab === 'learn' && <LearnScreen />}

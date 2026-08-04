@@ -106,6 +106,10 @@ export default function CalendarScreen({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const loadEntries = useCallback(async () => {
     const [{ data: cycleData }, { data: symptomData }, { data: apptData }] = await Promise.all([
@@ -161,6 +165,63 @@ export default function CalendarScreen({ userId }: { userId: string }) {
       frontColor: '#8E5FBF',
     }));
   }, [lengths, lang]);
+
+  const monthSummary = useMemo(() => {
+    const periodDays = Object.keys(entries).filter(
+      (d) => d.startsWith(currentMonth) && entries[d] !== 'none'
+    ).length;
+
+    const symptomDatesInMonth = Object.keys(symptomDays).filter((d) => d.startsWith(currentMonth));
+    const symptomDaysCount = symptomDatesInMonth.length;
+
+    const tagCounts: Record<string, number> = {};
+    symptomDatesInMonth.forEach((date) => {
+      symptomDays[date].forEach((tagId) => {
+        tagCounts[tagId] = (tagCounts[tagId] || 0) + 1;
+      });
+    });
+
+    let topTag: string | null = null;
+    let topCount = 0;
+    Object.entries(tagCounts).forEach(([tagId, count]) => {
+      if (count > topCount) {
+        topTag = tagId;
+        topCount = count;
+      }
+    });
+
+    const allTags = SYMPTOM_CATEGORIES.flatMap((c) => c.tags);
+    const topTagInfo = topTag ? allTags.find((t) => t.id === topTag) : null;
+
+    if (periodDays === 0 && symptomDaysCount === 0) return null;
+
+    return { periodDays, symptomDaysCount, topTagInfo };
+  }, [entries, symptomDays, currentMonth]);
+
+  const cycleScore = useMemo(() => {
+    if (lengths.length === 0) return null;
+
+    // Regularity: lower variance in recent cycle lengths = higher score
+    const recent = lengths.slice(-4);
+    const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const variance = recent.reduce((sum, l) => sum + Math.pow(l - avg, 2), 0) / recent.length;
+    const stdDev = Math.sqrt(variance);
+    const regularityScore = Math.max(0, 100 - stdDev * 12); // 0 stdDev = 100, ~8 days stdDev = 0
+
+    // Logging consistency: % of days in the last 30 days with any entry
+    const today = new Date();
+    let daysLogged = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (entries[dateStr] || symptomDays[dateStr]?.length) daysLogged++;
+    }
+    const consistencyScore = Math.min(100, (daysLogged / 30) * 100 * 3); // logging ~10/30 days = 100
+
+    const total = Math.round(regularityScore * 0.5 + consistencyScore * 0.5);
+    return { total: Math.min(100, Math.max(0, total)), regularityScore: Math.round(regularityScore), consistencyScore: Math.round(consistencyScore) };
+  }, [lengths, entries, symptomDays]);
 
   function openDay(dateString: string) {
     setSelectedDate(dateString);
@@ -226,6 +287,45 @@ export default function CalendarScreen({ userId }: { userId: string }) {
 
   return (
     <View style={styles.container}>
+      {cycleScore && (
+        <View style={styles.scoreCard}>
+          <View style={styles.scoreCircle}>
+            <Text style={styles.scoreNumber}>{cycleScore.total}</Text>
+            <Text style={styles.scoreMax}>/100</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.scoreTitle}>{lang === 'tr' ? 'Döngü Skoru' : 'Cycle Score'}</Text>
+            <Text style={styles.scoreSubtitle}>
+              {lang === 'tr'
+                ? 'Düzenlilik ve kayıt tutarlılığına göre'
+                : 'Based on regularity and logging consistency'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {monthSummary && (
+        <View style={styles.monthCard}>
+          <Text style={styles.monthTitle}>
+            {lang === 'tr' ? 'Bu Ayın Özeti' : 'This Month'}
+          </Text>
+          <View style={styles.monthRow}>
+            <Text style={styles.monthStat}>
+              🩸 {monthSummary.periodDays} {lang === 'tr' ? 'adet günü' : 'period days'}
+            </Text>
+            <Text style={styles.monthStat}>
+              📝 {monthSummary.symptomDaysCount} {lang === 'tr' ? 'kayıtlı gün' : 'logged days'}
+            </Text>
+          </View>
+          {monthSummary.topTagInfo && (
+            <Text style={styles.monthTopSymptom}>
+              {lang === 'tr' ? 'En sık: ' : 'Most common: '}
+              {monthSummary.topTagInfo.emoji} {lang === 'tr' ? monthSummary.topTagInfo.labelTr : monthSummary.topTagInfo.labelEn}
+            </Text>
+          )}
+        </View>
+      )}
+
       {stats && (
         <TouchableOpacity style={styles.statsCard} onPress={() => setStatsExpanded(!statsExpanded)} activeOpacity={0.8}>
           <View style={styles.statsRow}>
@@ -273,6 +373,7 @@ export default function CalendarScreen({ userId }: { userId: string }) {
       )}
 
       <Calendar
+        onMonthChange={(month: any) => setCurrentMonth(month.dateString.slice(0, 7))}
         dayComponent={({ date, state }: any) => (
           <DayCell
             date={date}
@@ -375,6 +476,41 @@ export default function CalendarScreen({ userId }: { userId: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FCEEF3', paddingTop: 60 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEEF3' },
+  scoreCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3A2250',
+    borderRadius: 20,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    padding: 16,
+    gap: 14,
+  },
+  scoreCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scoreNumber: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  scoreMax: { fontSize: 9, color: '#D4B8E8', marginTop: -2 },
+  scoreTitle: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  scoreSubtitle: { fontSize: 11, color: '#D4B8E8', marginTop: 2 },
+  monthCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#E8A9C9',
+  },
+  monthTitle: { fontSize: 13, fontWeight: '800', color: '#4A2C6D', marginBottom: 8 },
+  monthRow: { flexDirection: 'row', gap: 16 },
+  monthStat: { fontSize: 12, color: '#6B5B85', fontWeight: '600' },
+  monthTopSymptom: { fontSize: 12, color: '#8E5FBF', fontWeight: '700', marginTop: 8 },
   statsCard: {
     backgroundColor: '#fff',
     borderRadius: 18,

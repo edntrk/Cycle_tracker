@@ -17,6 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { APPOINTMENT_CATEGORIES } from '@/lib/appointmentCategories';
+import { calculateCycleInfo } from '@/lib/cycleCalculations';
 
 interface Appointment {
   id: string;
@@ -83,7 +84,13 @@ function formatTimeInput(d: Date) {
   return `${hh}:${mm}`;
 }
 
-export default function AppointmentsScreen({ userId }: { userId: string }) {
+interface ProfileForConflict {
+  last_period_start: string;
+  avg_cycle_length: number;
+  avg_period_length: number;
+}
+
+export default function AppointmentsScreen({ userId, profile }: { userId: string; profile?: ProfileForConflict }) {
   const { t, lang } = useLanguage();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +156,21 @@ export default function AppointmentsScreen({ userId }: { userId: string }) {
     return { upcoming, past };
   }, [appointments]);
 
+
+  const periodConflict = useMemo(() => {
+    if (!profile?.last_period_start) return false;
+    try {
+      const info = calculateCycleInfo(
+        profile.last_period_start,
+        profile.avg_cycle_length,
+        profile.avg_period_length,
+        dateObj
+      );
+      return info.phase === 'menstrual';
+    } catch {
+      return false;
+    }
+  }, [profile, dateObj]);
 
   const categorySearchKeyword: Record<string, string> = {
     gynecology: 'gynecologist',
@@ -747,6 +769,15 @@ const styles = StyleSheet.create({
   },
   predictionItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3E9F7' },
   predictionText: { fontSize: 13, color: '#2D1B3D' },
+  conflictBanner: {
+    backgroundColor: '#FDE2E2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#E88989',
+  },
+  conflictText: { color: '#A13A3A', fontSize: 12, fontWeight: '600' },
   pickerButton: {
     backgroundColor: '#FCEEF3', borderRadius: 12, padding: 14, borderWidth: 1.5,
     borderColor: '#E8A9C9', alignItems: 'center', marginBottom: 12,

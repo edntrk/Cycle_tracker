@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { calculateCycleInfo, CyclePhase } from '@/lib/cycleCalculations';
 import { schedulePeriodReminders } from '@/lib/periodReminders';
+import { getDailyInsight } from '@/lib/dailyInsights';
+import { SYMPTOM_CATEGORIES } from '@/lib/symptomTags';
 import CycleDial from './CycleDial';
 
 const phaseEmoji: Record<CyclePhase, string> = {
@@ -40,6 +42,13 @@ const quickActions = [
   { id: 'learn', emoji: '📖', labelEn: 'Learn', labelTr: 'Öğren' },
 ];
 
+const moodTags = SYMPTOM_CATEGORIES.find((c) => c.id === 'mood')!.tags;
+
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function HomeScreen({
   profile,
   onNavigate,
@@ -57,12 +66,31 @@ export default function HomeScreen({
   const { t, lang } = useLanguage();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [savingMood, setSavingMood] = useState(false);
+  const [weeklyInsight, setWeeklyInsight] = useState<string | null>(null);
+  const [loadingWeekly, setLoadingWeekly] = useState(false);
+  const [weeklyExpanded, setWeeklyExpanded] = useState(false);
 
   const info = calculateCycleInfo(
     profile.last_period_start,
     profile.avg_cycle_length,
     profile.avg_period_length
   );
+
+  const insight = getDailyInsight(info.phase, lang);
+
+  const loadTodayMood = useCallback(async () => {
+    if (!userId) return;
+    const moodIds = moodTags.map((m) => m.id);
+    const { data } = await supabase
+      .from('symptom_entries')
+      .select('symptom_type')
+      .eq('user_id', userId)
+      .eq('date', todayString())
+      .in('symptom_type', moodIds);
+    if (data && data.length > 0) setSelectedMood(data[0].symptom_type);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -72,7 +100,9 @@ export default function HomeScreen({
       .eq('id', userId)
       .single()
       .then(({ data }) => setAvatarUrl(data?.avatar_url || null));
-  }, [userId]);
+    loadTodayMood();
+    loadLatestWeeklyInsight();
+  }, [userId, loadTodayMood, loadLatestWeeklyInsight]);
 
   useEffect(() => {
     (async () => {
@@ -92,6 +122,66 @@ export default function HomeScreen({
       }
     })();
   }, [profile.last_period_start, profile.avg_cycle_length, profile.avg_period_length, lang]);
+
+  const loadLatestWeeklyInsight = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('weekly_insights')
+      .select('content, generated_at')
+      .eq('user_id', userId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      const hoursSince = (Date.now() - new Date(data.generated_at).getTime()) / 3600000;
+      setWeeklyInsight(data.content);
+      // Auto-refresh if the cached insight is more than 7 days old
+      if (hoursSince > 24 * 7) {
+        generateWeeklyInsight();
+      }
+    } else {
+      generateWeeklyInsight();
+    }
+  }, [userId]);
+
+  async function generateWeeklyInsight() {
+    if (!userId) return;
+    setLoadingWeekly(true);
+    const { data, error } = await supabase.functions.invoke('weekly-insights', {
+      body: { lang },
+    });
+    setLoadingWeekly(false);
+    if (!error && data?.content) {
+      setWeeklyInsight(data.content);
+    }
+  }
+
+  async function handleSelectMood(moodId: string) {
+    if (!userId || savingMood) return;
+    setSavingMood(true);
+
+    const moodIds = moodTags.map((m) => m.id);
+    const isDeselecting = selectedMood === moodId;
+
+    await supabase
+      .from('symptom_entries')
+      .delete()
+      .eq('user_id', userId)
+      .eq('date', todayString())
+      .in('symptom_type', moodIds);
+
+    if (!isDeselecting) {
+      await supabase.from('symptom_entries').insert({
+        user_id: userId,
+        date: todayString(),
+        symptom_type: moodId,
+      });
+    }
+
+    setSelectedMood(isDeselecting ? null : moodId);
+    setSavingMood(false);
+  }
 
   const phaseLabel = {
     menstrual: t.phaseMenstrual,
@@ -167,6 +257,37 @@ export default function HomeScreen({
           )}
         </View>
 
+        <View style={styles.moodCard}>
+          <Text style={styles.moodTitle}>
+            {lang === 'tr' ? 'Bugün nasıl hissediyorsun?' : 'How are you feeling today?'}
+          </Text>
+          <View style={styles.moodRow}>
+            {moodTags.map((mood) => {
+              const active = selectedMood === mood.id;
+              return (
+                <TouchableOpacity
+                  key={mood.id}
+                  style={[styles.moodChip, active && styles.moodChipActive]}
+                  onPress={() => handleSelectMood(mood.id)}
+                  disabled={savingMood}
+                >
+                  <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+                  <Text style={[styles.moodLabel, active && styles.moodLabelActive]}>
+                    {lang === 'tr' ? mood.labelTr : mood.labelEn}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.insightCard}>
+          <Text style={styles.insightBadge}>
+            {lang === 'tr' ? '💡 Bugünün İçgörüsü' : '💡 Today’s Insight'}
+          </Text>
+          <Text style={styles.insightText}>{insight}</Text>
+        </View>
+
         <View style={styles.infoRow}>
           <View style={styles.infoCard}>
             <Text style={styles.infoLabel}>{t.nextPeriod}</Text>
@@ -228,6 +349,44 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 13, color: '#6B5B85', marginTop: 3, textAlign: 'center' },
   fertileBadge: { marginTop: 10, backgroundColor: '#F3E9F7', borderRadius: 20, paddingVertical: 5, paddingHorizontal: 12 },
   fertileBadgeText: { color: '#8E5FBF', fontWeight: '700', fontSize: 11 },
+  moodCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#4A2C6D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  moodTitle: { fontSize: 13, fontWeight: '700', color: '#4A2C6D', marginBottom: 10 },
+  moodRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  moodChip: { alignItems: 'center', flex: 1, paddingVertical: 8, borderRadius: 14 },
+  moodChipActive: { backgroundColor: '#F3E9F7' },
+  moodEmoji: { fontSize: 22, marginBottom: 3 },
+  moodLabel: { fontSize: 9, color: '#8B7AA8', fontWeight: '600' },
+  moodLabelActive: { color: '#4A2C6D' },
+  insightCard: {
+    backgroundColor: '#3A2250',
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+  },
+  insightBadge: { fontSize: 11, fontWeight: '800', color: '#D4B8E8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  insightText: { fontSize: 13, color: '#F3E9F7', lineHeight: 20 },
+  weeklyCard: {
+    backgroundColor: '#F3E9F7',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+  weeklyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  weeklyBadge: { fontSize: 12, fontWeight: '800', color: '#5A3A75', textTransform: 'uppercase', letterSpacing: 0.3 },
+  weeklyChevron: { fontSize: 11, color: '#8E5FBF' },
+  weeklyPreview: { fontSize: 12, color: '#6B5B85', marginTop: 6 },
+  weeklyText: { fontSize: 13, color: '#3A2250', lineHeight: 20, marginTop: 10 },
+  weeklyRefresh: { fontSize: 12, color: '#8E5FBF', fontWeight: '700' },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -257,9 +416,7 @@ const styles = StyleSheet.create({
   },
   quickEmoji: { fontSize: 22, marginBottom: 5 },
   quickLabel: { fontSize: 11, fontWeight: '700', color: '#4A2C6D' },
-  backdrop: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: -1000,
-  },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: -1000 },
   dropdown: {
     position: 'absolute',
     top: 106,
