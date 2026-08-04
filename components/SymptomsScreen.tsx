@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +22,11 @@ const EMERGENCY_KEYWORDS = [
   'fainted', 'fainting', 'unconscious', 'severe bleeding', 'soaking through',
   'bayıldım', 'bayılma', 'şuur', 'aşırı kanama', 'çok fazla kanama', 'yüksek ateş', 'high fever',
 ];
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
 
 interface SymptomAnalysis {
   id: string;
@@ -47,13 +53,15 @@ const phaseNameEn: Record<string, string> = {
 export default function SymptomsScreen({ userId, profile }: { userId: string; profile?: Profile }) {
   const { t, lang } = useLanguage();
   const [input, setInput] = useState('');
-  const [result, setResult] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [emergencyFlag, setEmergencyFlag] = useState(false);
   const [locating, setLocating] = useState(false);
   const [history, setHistory] = useState<SymptomAnalysis[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [savedRowId, setSavedRowId] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const loadHistory = useCallback(async () => {
     const { data } = await supabase
@@ -95,20 +103,51 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
     return parts.length > 0 ? parts.join(' ') : undefined;
   }
 
-  async function handleAnalyze() {
-    if (!input.trim()) {
-      Alert.alert(t.error, t.emptyInput);
-      return;
+  async function saveOrUpdateTranscript(allMessages: ChatMessage[], flagged: boolean) {
+    const firstUserMsg = allMessages.find((m) => m.role === 'user')?.text || '';
+    const transcriptText = allMessages
+      .map((m) => (m.role === 'user' ? `${lang === 'tr' ? 'Sen' : 'You'}: ${m.text}` : `AI: ${m.text}`))
+      .join('\n\n');
+
+    if (savedRowId) {
+      await supabase
+        .from('symptom_analyses')
+        .update({ ai_response: transcriptText, was_flagged_emergency: flagged })
+        .eq('id', savedRowId);
+    } else {
+      const { data } = await supabase
+        .from('symptom_analyses')
+        .insert({
+          user_id: userId,
+          input_text: firstUserMsg,
+          ai_response: transcriptText,
+          was_flagged_emergency: flagged,
+        })
+        .select('id')
+        .single();
+      if (data) setSavedRowId(data.id);
     }
+    loadHistory();
+  }
+
+  async function handleSend() {
+    if (!input.trim()) return;
 
     const lower = input.toLowerCase();
-    const flagged = EMERGENCY_KEYWORDS.some((kw) => lower.includes(kw));
+    const flagged = emergencyFlag || EMERGENCY_KEYWORDS.some((kw) => lower.includes(kw));
     setEmergencyFlag(flagged);
-    setResult(null);
+
+    const userMessage: ChatMessage = { role: 'user', text: input.trim() };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput('');
     setLoading(true);
 
     const { data, error } = await supabase.functions.invoke('analyze-symptoms', {
-      body: { symptomDescription: input.trim(), cycleContext: buildCycleContext() },
+      body: {
+        messages: updatedMessages.map((m) => ({ role: m.role, text: m.text })),
+        cycleContext: buildCycleContext(),
+      },
     });
 
     setLoading(false);
@@ -118,17 +157,20 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
       return;
     }
 
-    setResult(data.result);
+    const assistantMessage: ChatMessage = { role: 'assistant', text: data.result };
+    const finalMessages = [...updatedMessages, assistantMessage];
+    setMessages(finalMessages);
 
-    await supabase.from('symptom_analyses').insert({
-      user_id: userId,
-      input_text: input.trim(),
-      ai_response: data.result,
-      was_flagged_emergency: flagged,
-    });
+    await saveOrUpdateTranscript(finalMessages, flagged);
 
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  }
+
+  function handleNewConversation() {
+    setMessages([]);
+    setEmergencyFlag(false);
+    setSavedRowId(null);
     setInput('');
-    loadHistory();
   }
 
   async function handleDeleteHistoryItem(id: string) {
@@ -171,171 +213,231 @@ export default function SymptomsScreen({ userId, profile }: { userId: string; pr
     });
   }
 
+  const hasAssistantReply = messages.some((m) => m.role === 'assistant');
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>🩺 {t.symptomsTitle}</Text>
-      <Text style={styles.subtitle}>{t.symptomsSubtitle}</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder={t.symptomsPlaceholder}
-        placeholderTextColor="#8B7AA8"
-        value={input}
-        onChangeText={setInput}
-        multiline
-        numberOfLines={4}
-        textAlignVertical="top"
-      />
-
-      <TouchableOpacity style={styles.button} onPress={handleAnalyze} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>{t.analyzeBtn}</Text>
-        )}
-      </TouchableOpacity>
-
-      {emergencyFlag && (
-        <View style={styles.emergencyBox}>
-          <Text style={styles.emergencyText}>
-            {lang === 'tr'
-              ? '⚠️ Anlattıkların ciddi olabilir. Lütfen mümkün olan en kısa sürede bir doktora veya acil servise başvur.'
-              : '⚠️ What you described may be serious. Please seek medical care or an emergency room as soon as possible.'}
-          </Text>
-        </View>
-      )}
-
-      {result && (
-        <View style={styles.resultBox}>
-          <Text style={styles.resultText}>{result}</Text>
-        </View>
-      )}
-
-      {result && (
-        <View style={styles.doctorSection}>
-          <Text style={styles.doctorTitle}>{t.findDoctorTitle}</Text>
-          <Text style={styles.doctorSubtitle}>{t.findDoctorSubtitle}</Text>
-          <TouchableOpacity style={styles.doctorButton} onPress={handleFindDoctor} disabled={locating}>
-            {locating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.doctorButtonText}>📍 {t.findDoctorBtn}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <Text style={styles.disclaimer}>{t.aiDisclaimer}</Text>
-
-      <TouchableOpacity style={styles.historyToggle} onPress={() => setHistoryOpen(!historyOpen)}>
-        <Text style={styles.historyToggleText}>
-          {historyOpen ? '▼' : '▶'} {lang === 'tr' ? 'Geçmiş' : 'History'}
-          {history.length > 0 ? ` (${history.length})` : ''}
-        </Text>
-      </TouchableOpacity>
-
-      {historyOpen && (
-        <View style={styles.historySection}>
-          {historyLoading ? (
-            <ActivityIndicator color="#B39DDB" style={{ marginTop: 12 }} />
-          ) : history.length === 0 ? (
-            <Text style={styles.emptyHistory}>
-              {lang === 'tr' ? 'Henüz kayıt yok.' : 'No entries yet.'}
-            </Text>
-          ) : (
-            history.map((item) => (
-              <View key={item.id} style={styles.historyCard}>
-                <View style={styles.historyCardHeader}>
-                  <Text style={styles.historyDate}>{formatDate(item.created_at)}</Text>
-                  <TouchableOpacity onPress={() => handleDeleteHistoryItem(item.id)}>
-                    <Text style={styles.historyDelete}>{t.delete}</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.historyInput}>"{item.input_text}"</Text>
-                <Text style={styles.historyResponse}>{item.ai_response}</Text>
-                {item.was_flagged_emergency && (
-                  <Text style={styles.historyFlag}>⚠️ {lang === 'tr' ? 'Acil olarak işaretlendi' : 'Flagged as urgent'}</Text>
-                )}
-              </View>
-            ))
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#FCEEF3' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>🩺 {t.symptomsTitle}</Text>
+          {messages.length > 0 && (
+            <TouchableOpacity onPress={handleNewConversation}>
+              <Text style={styles.newChatText}>{lang === 'tr' ? '+ Yeni' : '+ New'}</Text>
+            </TouchableOpacity>
           )}
         </View>
-      )}
-    </ScrollView>
+
+        {messages.length === 0 && (
+          <Text style={styles.subtitle}>{t.symptomsSubtitle}</Text>
+        )}
+
+        <ScrollView
+          ref={scrollRef}
+          style={styles.chatArea}
+          contentContainerStyle={styles.chatContent}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.map((m, i) => (
+            <View
+              key={i}
+              style={[styles.bubble, m.role === 'user' ? styles.userBubble : styles.aiBubble]}
+            >
+              <Text style={m.role === 'user' ? styles.userBubbleText : styles.aiBubbleText}>{m.text}</Text>
+            </View>
+          ))}
+
+          {loading && (
+            <View style={styles.typingBubble}>
+              <View style={styles.typingDot} />
+              <View style={[styles.typingDot, { opacity: 0.6 }]} />
+              <View style={[styles.typingDot, { opacity: 0.3 }]} />
+            </View>
+          )}
+
+          {emergencyFlag && (
+            <View style={styles.emergencyBox}>
+              <Text style={styles.emergencyText}>
+                {lang === 'tr'
+                  ? '⚠️ Anlattıkların ciddi olabilir. Lütfen mümkün olan en kısa sürede bir doktora veya acil servise başvur.'
+                  : '⚠️ What you described may be serious. Please seek medical care or an emergency room as soon as possible.'}
+              </Text>
+            </View>
+          )}
+
+          {hasAssistantReply && (
+            <View style={styles.doctorSection}>
+              <Text style={styles.doctorTitle}>{t.findDoctorTitle}</Text>
+              <TouchableOpacity style={styles.doctorButton} onPress={handleFindDoctor} disabled={locating}>
+                {locating ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.doctorButtonText}>📍 {t.findDoctorBtn}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {hasAssistantReply && <Text style={styles.disclaimer}>{t.aiDisclaimer}</Text>}
+
+          <TouchableOpacity style={styles.historyToggle} onPress={() => setHistoryOpen(!historyOpen)}>
+            <Text style={styles.historyToggleText}>
+              {historyOpen ? '▼' : '▶'} {lang === 'tr' ? 'Geçmiş' : 'History'}
+              {history.length > 0 ? ` (${history.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+
+          {historyOpen && (
+            <View style={styles.historySection}>
+              {historyLoading ? (
+                <ActivityIndicator color="#B39DDB" style={{ marginTop: 12 }} />
+              ) : history.length === 0 ? (
+                <Text style={styles.emptyHistory}>{lang === 'tr' ? 'Henüz kayıt yok.' : 'No entries yet.'}</Text>
+              ) : (
+                history.map((item) => (
+                  <View key={item.id} style={styles.historyCard}>
+                    <View style={styles.historyCardHeader}>
+                      <Text style={styles.historyDate}>{formatDate(item.created_at)}</Text>
+                      <TouchableOpacity onPress={() => handleDeleteHistoryItem(item.id)}>
+                        <Text style={styles.historyDelete}>{t.delete}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.historyInput}>"{item.input_text}"</Text>
+                    <Text style={styles.historyResponse}>{item.ai_response}</Text>
+                    {item.was_flagged_emergency && (
+                      <Text style={styles.historyFlag}>⚠️ {lang === 'tr' ? 'Acil olarak işaretlendi' : 'Flagged as urgent'}</Text>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.chatInput}
+            placeholder={t.symptomsPlaceholder}
+            placeholderTextColor="#8B7AA8"
+            value={input}
+            onChangeText={setInput}
+            multiline
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={handleSend} disabled={loading || !input.trim()}>
+            <Text style={styles.sendButtonText}>➤</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FCEEF3' },
-  content: { padding: 20, paddingTop: 70, paddingBottom: 60 },
-  title: { fontSize: 24, fontWeight: '700', color: '#4A2C6D', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#6B5B85', marginBottom: 20 },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    borderWidth: 1.5,
-    borderColor: '#E8A9C9',
-    color: '#2D1B3D',
-    minHeight: 100,
-    marginBottom: 16,
+  container: { flex: 1, backgroundColor: '#FCEEF3', paddingTop: 60 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: '#4A2C6D' },
+  newChatText: { fontSize: 13, color: '#8E5FBF', fontWeight: '700' },
+  subtitle: { fontSize: 14, color: '#6B5B85', paddingHorizontal: 20, marginTop: 6, marginBottom: 10 },
+  chatArea: { flex: 1 },
+  chatContent: { padding: 20, paddingBottom: 20, flexGrow: 1, justifyContent: 'flex-end' },
+  bubble: {
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    maxWidth: '82%',
   },
-  button: { backgroundColor: '#8E5FBF', borderRadius: 12, padding: 16, alignItems: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  userBubble: {
+    backgroundColor: '#8E5FBF',
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 6,
+    shadowColor: '#8E5FBF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  aiBubble: {
+    backgroundColor: '#fff',
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 6,
+    shadowColor: '#4A2C6D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  userBubbleText: { color: '#fff', fontSize: 14, lineHeight: 21 },
+  aiBubbleText: { color: '#2D1B3D', fontSize: 14, lineHeight: 21 },
+  typingBubble: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderBottomLeftRadius: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginBottom: 12,
+    gap: 5,
+    shadowColor: '#4A2C6D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#8E5FBF' },
   emergencyBox: {
     backgroundColor: '#FDE2E2',
     borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1.5,
     borderColor: '#E88989',
   },
-  emergencyText: { color: '#A13A3A', fontWeight: '600', fontSize: 14 },
-  resultBox: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
-    marginTop: 16,
-    borderWidth: 1.5,
-    borderColor: '#E8A9C9',
-  },
-  resultText: { color: '#2D1B3D', fontSize: 15, lineHeight: 22 },
-  doctorSection: {
-    marginTop: 16,
-    backgroundColor: '#F3E9F7',
-    borderRadius: 16,
-    padding: 18,
-  },
-  doctorTitle: { fontSize: 15, fontWeight: '700', color: '#4A2C6D', marginBottom: 4 },
-  doctorSubtitle: { fontSize: 13, color: '#6B5B85', marginBottom: 12 },
-  doctorButton: {
-    backgroundColor: '#4A2C6D',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-  },
-  doctorButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  disclaimer: { fontSize: 12, color: '#8B7AA8', marginTop: 20, textAlign: 'center', fontStyle: 'italic' },
-  historyToggle: {
-    marginTop: 24,
-    paddingVertical: 10,
-  },
-  historyToggleText: { fontSize: 15, fontWeight: '700', color: '#4A2C6D' },
-  historySection: { marginTop: 8 },
+  emergencyText: { color: '#A13A3A', fontWeight: '600', fontSize: 13 },
+  doctorSection: { backgroundColor: '#F3E9F7', borderRadius: 16, padding: 16, marginBottom: 10 },
+  doctorTitle: { fontSize: 13, fontWeight: '700', color: '#4A2C6D', marginBottom: 10 },
+  doctorButton: { backgroundColor: '#4A2C6D', borderRadius: 12, padding: 12, alignItems: 'center' },
+  doctorButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  disclaimer: { fontSize: 11, color: '#8B7AA8', marginBottom: 16, textAlign: 'center', fontStyle: 'italic' },
+  historyToggle: { paddingVertical: 10 },
+  historyToggleText: { fontSize: 14, fontWeight: '700', color: '#4A2C6D' },
+  historySection: { marginTop: 4 },
   emptyHistory: { color: '#8B7AA8', fontSize: 13, fontStyle: 'italic' },
-  historyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#F0D9E8',
-  },
+  historyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#F0D9E8' },
   historyCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   historyDate: { fontSize: 11, color: '#B08BC9' },
   historyDelete: { fontSize: 12, color: '#D46A9F', fontWeight: '600' },
   historyInput: { fontSize: 13, color: '#6B5B85', fontStyle: 'italic', marginBottom: 6 },
-  historyResponse: { fontSize: 13, color: '#2D1B3D', lineHeight: 18 },
+  historyResponse: { fontSize: 12, color: '#2D1B3D', lineHeight: 18 },
   historyFlag: { fontSize: 11, color: '#A13A3A', fontWeight: '600', marginTop: 6 },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#F0D9E8',
+    gap: 10,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#FCEEF3',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#2D1B3D',
+    maxHeight: 100,
+    borderWidth: 1.5,
+    borderColor: '#E8A9C9',
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#8E5FBF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

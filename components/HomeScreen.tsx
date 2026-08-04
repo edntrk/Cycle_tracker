@@ -321,6 +321,11 @@ export default function HomeScreen({
               <Text style={styles.dropdownText}>{lang === 'tr' ? 'Profil' : 'Profile'}</Text>
             </TouchableOpacity>
             <View style={styles.dropdownDivider} />
+            <TouchableOpacity style={styles.dropdownItem} onPress={() => goTo('partner')}>
+              <Text style={styles.dropdownIcon}>💞</Text>
+              <Text style={styles.dropdownText}>{lang === 'tr' ? 'Partner' : 'Partner'}</Text>
+            </TouchableOpacity>
+            <View style={styles.dropdownDivider} />
             <TouchableOpacity style={styles.dropdownItem} onPress={() => goTo('settings')}>
               <Text style={styles.dropdownIcon}>⚙️</Text>
               <Text style={styles.dropdownText}>{lang === 'tr' ? 'Ayarlar' : 'Settings'}</Text>

@@ -33,7 +33,7 @@ function RootContent() {
   const loadProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, onboarding_completed, last_period_start, avg_cycle_length, avg_period_length, health_conditions')
+      .select('full_name, onboarding_completed, last_period_start, avg_cycle_length, avg_period_length, health_conditions, email')
       .eq('id', userId)
       .single();
     setProfile(data);

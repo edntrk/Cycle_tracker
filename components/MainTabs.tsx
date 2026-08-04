@@ -8,9 +8,10 @@ import SymptomsScreen from './SymptomsScreen';
 import LearnScreen from './LearnScreen';
 import ProfileScreen from './ProfileScreen';
 import SettingsScreen from './SettingsScreen';
+import PartnerScreen from './PartnerScreen';
 import { useLanguage } from '@/lib/LanguageContext';
 
-type Tab = 'home' | 'calendar' | 'appointments' | 'meds' | 'symptoms' | 'learn' | 'profile' | 'settings';
+type Tab = 'home' | 'calendar' | 'appointments' | 'meds' | 'symptoms' | 'learn' | 'profile' | 'settings' | 'partner';
 
 export default function MainTabs({
   userId,
@@ -34,6 +35,7 @@ export default function MainTabs({
       {tab === 'learn' && <LearnScreen />}
       {tab === 'profile' && <ProfileScreen userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />}
       {tab === 'settings' && <SettingsScreen userId={userId} onNavigate={(dest) => setTab(dest as Tab)} />}
+      {tab === 'partner' && <PartnerScreen userId={userId} userEmail={profile.email} onNavigate={(dest) => setTab(dest as Tab)} />}
 
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setTab('home')}>
