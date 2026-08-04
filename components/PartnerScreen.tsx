@@ -246,7 +246,15 @@ export default function PartnerScreen({
       </View>
 
       {!partnerCycleInfo && incomingInvites.filter((i) => i.status === 'pending').length === 0 && !outgoingLink && (
-        <Text style={styles.emptyText}>{t.noActivePartnerLink}</Text>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>💞</Text>
+          <Text style={styles.emptyTitle}>{t.noActivePartnerLink}</Text>
+          <Text style={styles.emptySubtitle}>
+            {lang === 'tr'
+              ? 'Partnerin sadece döngü fazını ve durumunu görebilir — detaylı semptomların hep özel kalır.'
+              : "Your partner will only see your cycle phase and status — detailed symptoms always stay private."}
+          </Text>
+        </View>
       )}
     </ScrollView>
   );
@@ -315,4 +323,8 @@ const styles = StyleSheet.create({
   partnerDetail: { fontSize: 12, color: '#D4B8E8', marginTop: 2 },
   partnerFertile: { fontSize: 11, color: '#D4B8E8', marginTop: 4, fontWeight: '700' },
   emptyText: { color: '#B08BC9', fontSize: 13, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
+  emptyState: { alignItems: 'center', marginTop: 10, paddingHorizontal: 10 },
+  emptyEmoji: { fontSize: 44, marginBottom: 12 },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: '#8B7AA8', marginBottom: 8, textAlign: 'center' },
+  emptySubtitle: { fontSize: 12, color: '#B08BC9', textAlign: 'center', lineHeight: 18 },
 });

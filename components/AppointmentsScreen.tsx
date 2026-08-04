@@ -475,7 +475,28 @@ export default function AppointmentsScreen({ userId, profile }: { userId: string
         </View>
 
         {list.length === 0 ? (
-          <Text style={styles.emptyText}>{t.noAppointments}</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>{activeSection === 'upcoming' ? '🗓️' : '📋'}</Text>
+            <Text style={styles.emptyTitle}>
+              {activeSection === 'upcoming'
+                ? (lang === 'tr' ? 'Henüz randevun yok' : 'No appointments yet')
+                : (lang === 'tr' ? 'Geçmiş randevu yok' : 'No past appointments')}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {activeSection === 'upcoming'
+                ? (lang === 'tr'
+                    ? 'Bir sonraki doktor ziyaretini ekleyip hatırlatma kur.'
+                    : "Add your next doctor's visit and set a reminder.")
+                : (lang === 'tr'
+                    ? 'Geçmiş randevuların burada birikecek.'
+                    : 'Your past appointments will show up here.')}
+            </Text>
+            {activeSection === 'upcoming' && (
+              <TouchableOpacity style={styles.emptyCta} onPress={() => setModalVisible(true)}>
+                <Text style={styles.emptyCtaText}>+ {t.addAppointment}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
           list.map(renderAppointment)
         )}
@@ -727,6 +748,12 @@ const styles = StyleSheet.create({
   sectionBtnText: { fontSize: 13, fontWeight: '700', color: '#4A2C6D' },
   sectionBtnTextActive: { color: '#fff' },
   emptyText: { color: '#8B7AA8', textAlign: 'center', marginTop: 40 },
+  emptyState: { alignItems: 'center', marginTop: 50, paddingHorizontal: 20 },
+  emptyEmoji: { fontSize: 52, marginBottom: 14 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#4A2C6D', marginBottom: 6, textAlign: 'center' },
+  emptySubtitle: { fontSize: 13, color: '#8B7AA8', textAlign: 'center', lineHeight: 19, marginBottom: 18 },
+  emptyCta: { backgroundColor: '#8E5FBF', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22 },
+  emptyCtaText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   apptCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1.5, borderColor: '#E8A9C9' },
   apptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   apptCategory: { fontSize: 12, fontWeight: '700' },
