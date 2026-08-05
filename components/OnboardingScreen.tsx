@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,19 +10,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  Image,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
+import AyaLogo from './AyaLogo';
 
 const TOTAL_STEPS = 6;
 
 const GOALS = [
-  { id: 'track', emoji: '📅', enKey: 'obGoalTrack' as const },
-  { id: 'pregnancy', emoji: '🤰', enKey: 'obGoalPregnancy' as const },
-  { id: 'avoid', emoji: '🚫', enKey: 'obGoalAvoid' as const },
-  { id: 'symptoms', emoji: '🩺', enKey: 'obGoalSymptoms' as const },
-  { id: 'health', emoji: '💊', enKey: 'obGoalHealth' as const },
+  { id: 'track', emoji: '📅', color: '#8E5FBF', enKey: 'obGoalTrack' as const },
+  { id: 'pregnancy', emoji: '🤰', color: '#D46A9F', enKey: 'obGoalPregnancy' as const },
+  { id: 'avoid', emoji: '🚫', color: '#7CB88F', enKey: 'obGoalAvoid' as const },
+  { id: 'symptoms', emoji: '🩺', color: '#5FA8D3', enKey: 'obGoalSymptoms' as const },
+  { id: 'health', emoji: '💊', color: '#C9A227', enKey: 'obGoalHealth' as const },
 ];
 
 export default function OnboardingScreen({
@@ -34,6 +37,7 @@ export default function OnboardingScreen({
 }) {
   const { t } = useLanguage();
   const [step, setStep] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const [goal, setGoal] = useState<string | null>(null);
   const [lastPeriodDate, setLastPeriodDate] = useState('');
@@ -41,6 +45,15 @@ export default function OnboardingScreen({
   const [periodLength, setPeriodLength] = useState('5');
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [step]);
 
   function toggleCondition(id: string) {
     if (id === 'none') {
@@ -90,12 +103,22 @@ export default function OnboardingScreen({
 
   const progress = ((step + 1) / TOTAL_STEPS) * 100;
 
+  function StepMascot() {
+    return (
+      <Image
+        source={require('../assets/images/aya-mascot.png')}
+        style={styles.mascotSmall}
+        resizeMode="contain"
+      />
+    );
+  }
+
   function renderStepContent() {
     switch (step) {
       case 0:
         return (
           <View style={styles.introWrap}>
-            <Text style={styles.introEmoji}>🌸</Text>
+            <Image source={require('../assets/images/aya-mascot.png')} style={styles.mascotLarge} resizeMode="contain" />
             <Text style={styles.title}>{t.obStep1Title}</Text>
             <Text style={styles.body}>{t.obStep1Body}</Text>
           </View>
@@ -112,11 +135,15 @@ export default function OnboardingScreen({
                 return (
                   <TouchableOpacity
                     key={g.id}
-                    style={[styles.goalOption, active && styles.goalOptionActive]}
+                    style={[styles.goalOption, active && { borderColor: g.color, backgroundColor: `${g.color}14` }]}
                     onPress={() => setGoal(g.id)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.goalEmoji}>{g.emoji}</Text>
-                    <Text style={[styles.goalText, active && styles.goalTextActive]}>{t[g.enKey]}</Text>
+                    <View style={[styles.goalIconBadge, { backgroundColor: active ? g.color : `${g.color}22` }]}>
+                      <Text style={styles.goalEmoji}>{g.emoji}</Text>
+                    </View>
+                    <Text style={[styles.goalText, active && { color: g.color, fontWeight: '800' }]}>{t[g.enKey]}</Text>
+                    {active && <View style={[styles.goalCheck, { backgroundColor: g.color }]}><Text style={styles.goalCheckMark}>✓</Text></View>}
                   </TouchableOpacity>
                 );
               })}
@@ -127,12 +154,14 @@ export default function OnboardingScreen({
       case 2:
         return (
           <View>
+            <StepMascot />
+            <View style={styles.stepIconBadge}><Text style={styles.stepIconText}>🩸</Text></View>
             <Text style={styles.title}>{t.obDateTitle}</Text>
             <Text style={styles.body}>{t.obDateBody}</Text>
             <TextInput
               style={styles.input}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor="#B8A8C8"
+              placeholderTextColor="#C9B8D8"
               value={lastPeriodDate}
               onChangeText={setLastPeriodDate}
               keyboardType="numbers-and-punctuation"
@@ -143,6 +172,8 @@ export default function OnboardingScreen({
       case 3:
         return (
           <View>
+            <StepMascot />
+            <View style={styles.stepIconBadge}><Text style={styles.stepIconText}>🔄</Text></View>
             <Text style={styles.title}>{t.obLengthTitle}</Text>
             <Text style={styles.body}>{t.obLengthBody}</Text>
             <TextInput
@@ -157,6 +188,8 @@ export default function OnboardingScreen({
       case 4:
         return (
           <View>
+            <StepMascot />
+            <View style={styles.stepIconBadge}><Text style={styles.stepIconText}>📆</Text></View>
             <Text style={styles.title}>{t.obPeriodLenTitle}</Text>
             <Text style={styles.body}>{t.obPeriodLenBody}</Text>
             <TextInput
@@ -171,6 +204,8 @@ export default function OnboardingScreen({
       case 5:
         return (
           <View>
+            <StepMascot />
+            <View style={styles.stepIconBadge}><Text style={styles.stepIconText}>💜</Text></View>
             <Text style={styles.title}>{t.obConditionsTitle}</Text>
             <Text style={styles.body}>{t.obConditionsBody}</Text>
             <View style={styles.conditionsRow}>
@@ -204,12 +239,15 @@ export default function OnboardingScreen({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.decorCircleTop} />
+      <View style={styles.decorCircleBottom} />
+
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progress}%` }]} />
       </View>
 
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>{renderStepContent()}</View>
+        <Animated.View style={[styles.card, { opacity: fadeAnim }]}>{renderStepContent()}</Animated.View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -236,6 +274,25 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 60,
     backgroundColor: '#FCEEF3',
+    overflow: 'hidden',
+  },
+  decorCircleTop: {
+    position: 'absolute',
+    top: -80,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(142, 95, 191, 0.08)',
+  },
+  decorCircleBottom: {
+    position: 'absolute',
+    bottom: -100,
+    left: -80,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(212, 106, 159, 0.07)',
   },
   progressTrack: {
     height: 6,
@@ -251,39 +308,48 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 28,
-    padding: 26,
+    borderRadius: 30,
+    padding: 28,
     shadowColor: '#4A2C6D',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
   },
   introWrap: { alignItems: 'center' },
-  introEmoji: { fontSize: 52, marginBottom: 16 },
+  mascotLarge: { width: 140, height: 140, marginBottom: 8 },
+  mascotSmall: { width: 56, height: 56, marginBottom: 10 },
+  stepIconBadge: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#F3E9F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  stepIconText: { fontSize: 26 },
   title: {
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: '800',
     color: '#3A2250',
     marginBottom: 10,
-    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   body: {
     fontSize: 14,
     color: '#6B5B85',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 22,
+    lineHeight: 21,
+    marginBottom: 24,
   },
   input: {
     backgroundColor: '#FCEEF3',
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 17,
+    borderRadius: 16,
+    padding: 17,
+    fontSize: 18,
     borderWidth: 1.5,
     borderColor: '#F0D9E8',
     color: '#2D1B3D',
-    textAlign: 'center',
     fontWeight: '700',
   },
   goalList: { gap: 10 },
@@ -291,20 +357,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FCEEF3',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 12,
     borderWidth: 1.5,
-    borderColor: '#F0D9E8',
-    gap: 12,
+    borderColor: 'transparent',
+    gap: 14,
   },
-  goalOptionActive: { backgroundColor: '#8E5FBF', borderColor: '#8E5FBF' },
-  goalEmoji: { fontSize: 20 },
+  goalIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goalEmoji: { fontSize: 19 },
   goalText: { fontSize: 14, fontWeight: '600', color: '#4A2C6D', flex: 1 },
-  goalTextActive: { color: '#fff' },
+  goalCheck: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  goalCheckMark: { color: '#fff', fontSize: 12, fontWeight: '800' },
   conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   conditionChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 18,
     backgroundColor: '#FCEEF3',
     borderWidth: 1.5,
@@ -316,22 +389,22 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', gap: 12, marginTop: 16 },
   backButton: {
     paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    backgroundColor: '#F3E9F7',
+    paddingHorizontal: 22,
+    borderRadius: 16,
+    backgroundColor: '#fff',
   },
   backButtonText: { color: '#8E5FBF', fontSize: 15, fontWeight: '700' },
   nextButton: {
     flex: 1,
     backgroundColor: '#8E5FBF',
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 16,
+    padding: 17,
     alignItems: 'center',
     shadowColor: '#8E5FBF',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 4,
   },
   nextButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

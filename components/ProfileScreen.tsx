@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
 import { HEALTH_CONDITIONS } from '@/lib/healthConditions';
+import { calculateBmi } from '@/lib/bmi';
 
 export default function ProfileScreen({ userId, onNavigate }: { userId: string; onNavigate?: (tab: string) => void }) {
   const { t, lang, setLang } = useLanguage();
@@ -28,12 +29,14 @@ export default function ProfileScreen({ userId, onNavigate }: { userId: string; 
   const [email, setEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, age, years_since_first_period, phone, email, avatar_url, health_conditions')
+        .select('full_name, age, years_since_first_period, phone, email, avatar_url, health_conditions, height_cm, weight_kg')
         .eq('id', userId)
         .single();
 
@@ -45,6 +48,8 @@ export default function ProfileScreen({ userId, onNavigate }: { userId: string; 
         setEmail(data.email || '');
         setAvatarUrl(data.avatar_url || null);
         setSelectedConditions(data.health_conditions || []);
+        setHeight(data.height_cm ? String(data.height_cm) : '');
+        setWeight(data.weight_kg ? String(data.weight_kg) : '');
       }
       setLoading(false);
     })();
@@ -154,6 +159,8 @@ export default function ProfileScreen({ userId, onNavigate }: { userId: string; 
         years_since_first_period: yearsSincePeriod ? parseInt(yearsSincePeriod, 10) : null,
         phone: phone || null,
         health_conditions: selectedConditions.filter((c) => c !== 'none'),
+        height_cm: height ? parseFloat(height) : null,
+        weight_kg: weight ? parseFloat(weight) : null,
       })
       .eq('id', userId);
     setSaving(false);
@@ -171,6 +178,8 @@ export default function ProfileScreen({ userId, onNavigate }: { userId: string; 
       { text: t.signOut, style: 'destructive', onPress: () => supabase.auth.signOut() },
     ]);
   }
+
+  const bmiResult = calculateBmi(parseFloat(height), parseFloat(weight));
 
   if (loading) {
     return (
@@ -254,6 +263,45 @@ export default function ProfileScreen({ userId, onNavigate }: { userId: string; 
         placeholderTextColor="#8B7AA8"
       />
 
+      <View style={styles.rowInputs}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>{lang === 'tr' ? 'Boy (cm)' : 'Height (cm)'}</Text>
+          <TextInput
+            style={styles.input}
+            value={height}
+            onChangeText={setHeight}
+            keyboardType="decimal-pad"
+            placeholder="165"
+            placeholderTextColor="#8B7AA8"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>{lang === 'tr' ? 'Kilo (kg)' : 'Weight (kg)'}</Text>
+          <TextInput
+            style={styles.input}
+            value={weight}
+            onChangeText={setWeight}
+            keyboardType="decimal-pad"
+            placeholder="60"
+            placeholderTextColor="#8B7AA8"
+          />
+        </View>
+      </View>
+
+      {bmiResult && (
+        <View style={styles.bmiCard}>
+          <Text style={styles.bmiValue}>{bmiResult.value}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bmiCategory}>{lang === 'tr' ? bmiResult.categoryTr : bmiResult.categoryEn}</Text>
+            <Text style={styles.bmiNote}>
+              {lang === 'tr'
+                ? 'BMI genel bir gösterge, tıbbi bir tanı değildir.'
+                : 'BMI is a general indicator, not a medical diagnosis.'}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <Text style={styles.label}>
         {lang === 'tr' ? 'Tanı konmuş sağlık durumları' : 'Diagnosed health conditions'}
       </Text>
@@ -333,6 +381,14 @@ const styles = StyleSheet.create({
     color: '#2D1B3D',
   },
   inputDisabled: { opacity: 0.6 },
+  rowInputs: { flexDirection: 'row', gap: 12 },
+  bmiCard: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3E9F7',
+    borderRadius: 16, padding: 16, marginBottom: 20, gap: 14,
+  },
+  bmiValue: { fontSize: 26, fontWeight: '800', color: '#8E5FBF' },
+  bmiCategory: { fontSize: 14, fontWeight: '700', color: '#4A2C6D' },
+  bmiNote: { fontSize: 11, color: '#8B7AA8', marginTop: 2 },
   conditionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   conditionChip: {
     paddingVertical: 8,

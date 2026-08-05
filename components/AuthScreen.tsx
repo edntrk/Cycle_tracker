@@ -10,10 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
+import AyaLogo from './AyaLogo';
 
 type Step = 'form' | 'verify' | 'forgot-email' | 'forgot-reset';
 
@@ -262,8 +264,13 @@ export default function AuthScreen() {
       {LangSwitch}
 
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
-        <Text style={styles.brandEmoji}>🌸</Text>
-        <Text style={styles.brandTitle}>{t.appName}</Text>
+        <View style={styles.brandWrap}>
+          <Image source={require('../assets/images/aya-mascot.png')} style={styles.mascotImage} resizeMode="contain" />
+          <Text style={styles.brandTitle}>{t.appName}</Text>
+          <Text style={styles.brandTagline}>
+            {lang === 'tr' ? 'Döngünü, sana özel şekilde anla.' : 'Understand your cycle, your way.'}
+          </Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.subtitle}>{isSignUp ? t.createAccount : t.signIn}</Text>
@@ -351,8 +358,11 @@ const styles = StyleSheet.create({
   langText: { fontSize: 14, color: '#8B7AA8', fontWeight: '600', paddingHorizontal: 4 },
   langActive: { color: '#4A2C6D' },
   langDivider: { color: '#8B7AA8' },
-  brandEmoji: { fontSize: 44, textAlign: 'center', marginBottom: 4 },
-  brandTitle: { fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 24, color: '#4A2C6D' },
+  brandWrap: { alignItems: 'center', marginBottom: 28 },
+  mascotImage: { width: 320, height: 320, marginTop: -30, marginBottom: -10, alignSelf: 'center' },
+  greetingText: { fontSize: 15, fontWeight: '700', color: '#8E5FBF', marginTop: 8, marginBottom: 2 },
+  brandTitle: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginTop: 14, color: '#3A2250', letterSpacing: -0.5 },
+  brandTagline: { fontSize: 13, color: '#B08BC9', marginTop: 4, textAlign: 'center' },
   card: {
     backgroundColor: '#fff',
     borderRadius: 28,

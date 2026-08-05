@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -209,7 +209,9 @@ export default function HomeScreen({
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#FCEEF3' }}>
+      <View style={styles.decorCircleTop} pointerEvents="none" />
+      <View style={styles.decorCircleBottom} pointerEvents="none" />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View>
@@ -282,9 +284,12 @@ export default function HomeScreen({
         </View>
 
         <View style={styles.insightCard}>
-          <Text style={styles.insightBadge}>
-            {lang === 'tr' ? '💡 Bugünün İçgörüsü' : '💡 Today’s Insight'}
-          </Text>
+          <View style={styles.insightHeader}>
+            <Image source={require('../assets/images/aya-mascot.png')} style={styles.insightMascot} resizeMode="contain" />
+            <Text style={styles.insightBadge}>
+              {lang === 'tr' ? 'Bugünün İçgörüsü' : "Today's Insight"}
+            </Text>
+          </View>
           <Text style={styles.insightText}>{insight}</Text>
         </View>
 
@@ -338,7 +343,15 @@ export default function HomeScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FCEEF3' },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  decorCircleTop: {
+    position: 'absolute', top: -70, right: -50, width: 200, height: 200,
+    borderRadius: 100, backgroundColor: 'rgba(142, 95, 191, 0.07)',
+  },
+  decorCircleBottom: {
+    position: 'absolute', bottom: -90, left: -70, width: 240, height: 240,
+    borderRadius: 120, backgroundColor: 'rgba(212, 106, 159, 0.06)',
+  },
   content: { padding: 20, paddingTop: 60, paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   greeting: { fontSize: 22, fontWeight: '800', color: '#3A2250', letterSpacing: -0.3 },
@@ -378,7 +391,9 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 16,
   },
-  insightBadge: { fontSize: 11, fontWeight: '800', color: '#D4B8E8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
+  insightMascot: { width: 32, height: 32 },
+  insightBadge: { fontSize: 11, fontWeight: '800', color: '#D4B8E8', textTransform: 'uppercase', letterSpacing: 0.5 },
   insightText: { fontSize: 13, color: '#F3E9F7', lineHeight: 20 },
   weeklyCard: {
     backgroundColor: '#F3E9F7',

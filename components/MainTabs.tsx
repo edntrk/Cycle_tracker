@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import HomeScreen from './HomeScreen';
 import CalendarScreen from './CalendarScreen';
 import AppointmentsScreen from './AppointmentsScreen';
@@ -22,6 +22,32 @@ export default function MainTabs({
 }) {
   const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>('home');
+  const [showWelcome, setShowWelcome] = useState(true);
+
+  if (showWelcome) {
+    return (
+      <TouchableOpacity
+        style={styles.welcomeOverlay}
+        activeOpacity={1}
+        onPress={() => setShowWelcome(false)}
+      >
+        <Image
+          source={require('../assets/images/aya-mascot.png')}
+          style={styles.welcomeMascot}
+          resizeMode="contain"
+        />
+        <Text style={styles.welcomeGreeting}>
+          {t.appName === 'Aya' ? 'Merhaba! 👋' : 'Hi there! 👋'}
+        </Text>
+        <Text style={styles.welcomeSubtitle}>
+          {t.appName === 'Aya' ? 'Bugün de yanındayım.' : "I'm here with you today."}
+        </Text>
+        <Text style={styles.welcomeTapHint}>
+          {t.appName === 'Aya' ? 'Devam etmek için dokun' : 'Tap to continue'}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -64,6 +90,17 @@ export default function MainTabs({
 }
 
 const styles = StyleSheet.create({
+  welcomeOverlay: {
+    flex: 1,
+    backgroundColor: '#FCEEF3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  welcomeMascot: { width: 240, height: 240, marginBottom: 8 },
+  welcomeGreeting: { fontSize: 26, fontWeight: '800', color: '#3A2250', marginBottom: 6 },
+  welcomeSubtitle: { fontSize: 15, color: '#6B5B85', marginBottom: 40 },
+  welcomeTapHint: { fontSize: 12, color: '#B08BC9', fontWeight: '600' },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
